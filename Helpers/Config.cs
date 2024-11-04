@@ -22,3 +22,11 @@ public class AzureSearchConfig
     public string Endpoint { get; set; }
     public string ApiKey { get; set; }
 }
+
+public class LocalAIConfig
+{
+    public string PhiModelId { get; set; }
+    public string PhiModelPath { get; set; }
+    public string BgeModelPath { get; set; }
+    public string BgeModelVocabPath { get; set; }
+}
