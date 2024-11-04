@@ -1,4 +1,9 @@
 # SemanticKernelFun
+
+
+![dotnet](https://github.com/aherrick/SemanticKernelFun/actions/workflows/dotnet.yml/badge.svg)
+
+ User Secrets:
  
  ```
 
