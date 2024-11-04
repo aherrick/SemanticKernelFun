@@ -29,3 +29,11 @@
 
  ```
 
+Local Phi Model:
+```
+git clone https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-onnx
+```
+Local Bge Model:
+```
+git clone https://huggingface.co/TaylorAI/bge-micro-v2
+```
