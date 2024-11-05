@@ -5,16 +5,10 @@ using CsvHelper;
 using CsvHelper.Configuration;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using SemanticKernelFun.Models;
 using UglyToad.PdfPig;
 
 namespace SemanticKernelFun.Data;
-
-public class RawContentDocument
-{
-    public string Id { get; } = Guid.NewGuid().ToString();
-    public string FileName { get; set; }
-    public string Text { get; set; }
-}
 
 public class FileProcessor
 {

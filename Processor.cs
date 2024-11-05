@@ -12,11 +12,14 @@ using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.SemanticKernel.Memory;
 using Microsoft.SemanticKernel.Plugins.Core;
 using Microsoft.SemanticKernel.Plugins.Memory;
+using MoreRAGFun.Models;
+using SemanticKernelFun.Data;
 using SemanticKernelFun.Helpers;
 using SemanticKernelFun.Models;
 using Spectre.Console;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
+using UglyToad.PdfPig.Graphics;
 
 namespace SemanticKernelFun;
 
@@ -240,5 +243,46 @@ public static class Processor
 
             Console.WriteLine();
         }
+    }
+
+    internal static async Task AzureAIRAGVectorStore(
+        AzureAIConfig azureAIConfig,
+        AzureSearchConfig azureSearchConfig
+    )
+    {
+        // Prompt the user for the folder path
+        string folderPath = AnsiConsole.Ask<string>(
+            "[blue]Enter the folder path to read files from:[/]"
+        );
+
+        var files = await FileProcessor.ProcessFiles(folderPath);
+
+        var batches = files.Chunk(10);
+
+        //// Process each batch of content items for images
+        //foreach (var batch in batches)
+        //{
+        //    // Map each paragraph to a TextSnippet and generate an embedding for it.
+        //    var recordTasks = batch.Select(async content => new TextSnippet<string>
+        //    {
+        //        Key = Guid.NewGuid().ToString(),
+        //        Text = content.Text,
+        //        ReferenceDescription = $"{new FileInfo(pdfPath).Name}#page={content.PageNumber}",
+        //        ReferenceLink =
+        //            $"{new Uri(new FileInfo(pdfPath).FullName).AbsoluteUri}#page={content.PageNumber}",
+        //        TextEmbedding = await GetEmbeddings(content.Text, textEmbeddingGenerationService)
+        //    });
+
+        //    // Upsert the records into the vector store.
+        //    var records = await Task.WhenAll(recordTasks);
+
+        //    var upsertedKeys = vectorStoreRecordService.UpsertBatchAsync(records);
+        //    await foreach (var key in upsertedKeys.ConfigureAwait(false))
+        //    {
+        //        Console.WriteLine($"Upserted record '{key}' into VectorDB");
+        //    }
+
+        //    await Task.Delay(10_000);
+        //}
     }
 }

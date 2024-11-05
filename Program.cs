@@ -14,10 +14,12 @@ var azureSearchConfig = config.GetSection(nameof(AzureSearchConfig)).Get<AzureSe
 var localAIConfig = config.GetSection(nameof(LocalAIConfig)).Get<LocalAIConfig>();
 
 // Define constants for menu options
-const string OptionAzureRAG = "RAG (Azure)";
-const string OptionAzureChat = "Chat (Azure)";
-const string OptionLocalRAG = "RAG (Local)";
-const string OptionLocalChat = "Chat (Local)";
+const string OptionAzureRAG = "RAG Basic (Azure)";
+const string OptionAzureRAGVectorStore = "RAG Vector Store (Azure)";
+
+const string OptionAzureChat = "Chat Basic (Azure)";
+const string OptionLocalRAG = "RAG Basic (Local)";
+const string OptionLocalChat = "Chat Basic (Local)";
 const string OptionExit = "Exit";
 
 // Keep showing menu options until the user decides to exit{
@@ -29,6 +31,7 @@ while (true)
             .Title("[blue]Choose an option:[/]")
             .AddChoices(
                 OptionAzureChat,
+                OptionAzureRAGVectorStore,
                 OptionAzureRAG,
                 OptionLocalChat,
                 OptionLocalRAG,
@@ -47,6 +50,11 @@ while (true)
         case OptionAzureRAG:
 
             await Processor.AzureAIRAG(azureAIConfig, azureSearchConfig);
+            break;
+
+        case OptionAzureRAGVectorStore:
+
+            await Processor.AzureAIRAGVectorStore(azureAIConfig, azureSearchConfig);
             break;
 
         case OptionLocalChat:
