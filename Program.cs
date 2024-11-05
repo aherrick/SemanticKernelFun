@@ -1,7 +1,10 @@
 ﻿using Microsoft.Extensions.Configuration;
 using SemanticKernelFun;
-using SemanticKernelFun.Helpers;
+using SemanticKernelFun.Data;
+using SemanticKernelFun.Models;
 using Spectre.Console;
+
+var yo = await FileProcessor.ProcessFiles(@"C:\Users\andrew.j.herrick\Desktop\New folder");
 
 // Set up configuration and load user secrets
 var config = new ConfigurationBuilder().AddUserSecrets<Program>().Build();

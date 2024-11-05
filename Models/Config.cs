@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SemanticKernelFun.Helpers;
+namespace SemanticKernelFun.Models;
 
 public class AzureAIConfig
 {

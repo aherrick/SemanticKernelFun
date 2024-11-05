@@ -1,7 +1,9 @@
 ﻿#pragma warning disable SKEXP0050, SKEXP0001, SKEXP0070
 
+using System.Net;
 using System.Text;
-using LocalRAGFun3;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.VectorData;
 using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -11,7 +13,10 @@ using Microsoft.SemanticKernel.Memory;
 using Microsoft.SemanticKernel.Plugins.Core;
 using Microsoft.SemanticKernel.Plugins.Memory;
 using SemanticKernelFun.Helpers;
+using SemanticKernelFun.Models;
 using Spectre.Console;
+using UglyToad.PdfPig;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
 
 namespace SemanticKernelFun;
 

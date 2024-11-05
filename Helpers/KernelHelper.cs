@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.KernelMemory;
 using Microsoft.KernelMemory.AI.OpenAI;
 using Microsoft.SemanticKernel;
+using SemanticKernelFun.Models;
 
 namespace SemanticKernelFun.Helpers;
 
