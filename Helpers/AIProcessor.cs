@@ -1,15 +1,9 @@
 ﻿#pragma warning disable SKEXP0050, SKEXP0001, SKEXP0070
 
-using System.Net;
 using System.Text;
-using System.Text.Json;
-using DocumentFormat.OpenXml.Spreadsheet;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.VectorData;
-using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
@@ -20,17 +14,12 @@ using Microsoft.SemanticKernel.Plugins.Core;
 using Microsoft.SemanticKernel.Plugins.Memory;
 using Microsoft.SemanticKernel.PromptTemplates.Handlebars;
 using Microsoft.SemanticKernel.Text;
-using MongoDB.Bson.IO;
 using MoreRAGFun.Models;
 using SemanticKernelFun.Data;
-using SemanticKernelFun.Helpers;
 using SemanticKernelFun.Models;
 using Spectre.Console;
-using UglyToad.PdfPig;
-using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
-using UglyToad.PdfPig.Graphics;
 
-namespace SemanticKernelFun;
+namespace SemanticKernelFun.Helpers;
 
 public static class AIProcessor
 {
@@ -80,8 +69,8 @@ public static class AIProcessor
         while (true)
         {
             Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine($"You > ");
-            var question = Console.ReadLine()!.Trim();
+            Console.Write($"You > ");
+            var question = Console.ReadLine().Trim();
             if (question.Equals("exit", StringComparison.OrdinalIgnoreCase))
                 break;
 
@@ -108,7 +97,7 @@ public static class AIProcessor
             );
 
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("AI > ");
+            Console.Write("AI > ");
 
             string combinedResponse = string.Empty;
             await foreach (var message in response)

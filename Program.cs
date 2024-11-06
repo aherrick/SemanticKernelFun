@@ -1,5 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
-using SemanticKernelFun;
+using SemanticKernelFun.Helpers;
 using SemanticKernelFun.Models;
 using Spectre.Console;
 
@@ -20,7 +20,7 @@ const string OptionLocalChat = "Chat Basic (Local)";
 const string OptionImageDescription = "Image Description (Azure)";
 const string OptionExit = "Exit";
 
-// Keep showing menu options until the user decides to exit{
+// Keep showing menu options until the user decides to exit
 while (true)
 {
     // Show a selection menu with constants

@@ -29,10 +29,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Sample Docs\Guide For Building Extensible Controls.docx">
+    <None Update="SampleDocuments\Guide For Building Extensible Controls.docx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="Sample Docs\HR Policy.docx">
+    <None Update="SampleDocuments\HR Policy.docx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
