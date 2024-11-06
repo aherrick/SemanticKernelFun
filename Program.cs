@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
 using SemanticKernelFun;
-using SemanticKernelFun.Data;
 using SemanticKernelFun.Models;
 using Spectre.Console;
 
@@ -18,6 +17,7 @@ const string OptionAzureRAGVectorStore = "RAG Vector Store (Azure)";
 const string OptionAzureChat = "Chat Basic (Azure)";
 const string OptionLocalRAG = "RAG Basic (Local)";
 const string OptionLocalChat = "Chat Basic (Local)";
+const string OptionImageDescription = "Image Description (Azure)";
 const string OptionExit = "Exit";
 
 // Keep showing menu options until the user decides to exit{
@@ -33,6 +33,7 @@ while (true)
                 OptionAzureRAG,
                 OptionLocalChat,
                 OptionLocalRAG,
+                OptionImageDescription,
                 OptionExit
             )
     );
@@ -63,6 +64,11 @@ while (true)
         case OptionLocalRAG:
 
             await AIProcessor.LocalAIRAG(localAIConfig);
+            break;
+
+        case OptionImageDescription:
+
+            await AIProcessor.ImageDescription(azureAIConfig);
             break;
 
         case OptionExit:

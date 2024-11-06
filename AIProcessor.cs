@@ -200,6 +200,58 @@ public static class AIProcessor
         await AIChat(KernelChat);
     }
 
+    public static async Task ImageDescription(AzureAIConfig azureAIConfig)
+    {
+        // Prompt the user for the folder path
+        string folderPath = AnsiConsole.Ask<string>(
+            "[blue]Enter the folder path to read images from:[/]"
+        );
+
+        var searchPatterns = new[] { "*.jpg", "*.jpeg", "*.png", "*.gif" };
+
+        var files = searchPatterns.SelectMany(pattern => Directory.GetFiles(folderPath, pattern));
+
+        var chatCompletionService = KernelHelper
+            .GetKernelChatCompletion(azureAIConfig)
+            .GetRequiredService<IChatCompletionService>();
+
+        foreach (var file in files)
+        {
+            byte[] imageData = File.ReadAllBytes(file);
+            var mimeTypes = new Dictionary<string, string>
+            {
+                { ".jpg", "image/jpeg" },
+                { ".jpeg", "image/jpeg" },
+                { ".png", "image/png" },
+                { ".gif", "image/gif" }
+            };
+
+            var chatHistory = new ChatHistory();
+            chatHistory.AddUserMessage(
+                [
+                    new Microsoft.SemanticKernel.TextContent("What’s in this image?"),
+                    new Microsoft.SemanticKernel.ImageContent(
+                        imageData,
+                        mimeTypes[Path.GetExtension(file)]
+                    )
+                ]
+            );
+
+            await PollyHelper
+                .Retry()
+                .ExecuteAsync(async cancellationToken =>
+                {
+                    var result = await chatCompletionService.GetChatMessageContentsAsync(
+                        chatHistory,
+                        cancellationToken: cancellationToken
+                    );
+                    var textFromImage = string.Join("\n", result.Select(x => x.Content));
+
+                    Console.WriteLine($"{Path.GetFileName(file)}: {textFromImage}");
+                });
+        }
+    }
+
     private static async Task AIChat(Kernel kernel)
     {
         kernel.Plugins.AddFromType<TimePlugin>();
