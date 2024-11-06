@@ -13,6 +13,7 @@ var localAIConfig = config.GetSection(nameof(LocalAIConfig)).Get<LocalAIConfig>(
 // Define constants for menu options
 const string OptionAzureRAG = "RAG Basic (Azure)";
 const string OptionAzureRAGVectorStore = "RAG Vector Store (Azure)";
+const string OptionAzureRAGSearchDataSource = "RAG Search Data Source (Azure)";
 
 const string OptionAzureChat = "Chat Basic (Azure)";
 const string OptionLocalRAG = "RAG Basic (Local)";
@@ -31,6 +32,7 @@ while (true)
                 OptionAzureChat,
                 OptionAzureRAGVectorStore,
                 OptionAzureRAG,
+                OptionAzureRAGSearchDataSource,
                 OptionLocalChat,
                 OptionLocalRAG,
                 OptionImageDescription,
@@ -54,6 +56,11 @@ while (true)
         case OptionAzureRAGVectorStore:
 
             await AIProcessor.AzureAIRAGVectorStore(azureAIConfig, azureSearchConfig);
+            break;
+
+        case OptionAzureRAGSearchDataSource:
+
+            await AIProcessor.AzureAIRAGSearchChatDataSource(azureAIConfig, azureSearchConfig);
             break;
 
         case OptionLocalChat:

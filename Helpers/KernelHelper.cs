@@ -1,11 +1,14 @@
-﻿#pragma warning disable SKEXP0001, SKEXP0010, SKEXP0020 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+﻿#pragma warning disable SKEXP0001, SKEXP0010, SKEXP0020, AOAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
 using Azure;
+using Azure.AI.OpenAI;
+using Azure.AI.OpenAI.Chat;
 using Microsoft.KernelMemory;
 using Microsoft.KernelMemory.AI.OpenAI;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Data;
 using MoreRAGFun.Models;
+using OpenAI.Chat;
 using SemanticKernelFun.Models;
 
 namespace SemanticKernelFun.Helpers;
@@ -148,5 +151,28 @@ public static class KernelHelper
         var kernel = kernelBuilder.Build();
 
         return kernel;
+    }
+
+    public static AzureSearchChatDataSource GetAzureSearchChatDataSource(
+        AzureSearchConfig azureSearchConfig
+    )
+    {
+        return new AzureSearchChatDataSource()
+        {
+            Endpoint = new Uri(azureSearchConfig.Endpoint),
+            IndexName = azureSearchConfig.Index,
+            Authentication = DataSourceAuthentication.FromApiKey(azureSearchConfig.ApiKey),
+            InScope = true
+        };
+    }
+
+    public static ChatClient GetAzureOpenAIClient(AzureAIConfig azureAIConfig)
+    {
+        var azureClient = new AzureOpenAIClient(
+            new Uri(azureAIConfig.Endpoint),
+            new System.ClientModel.ApiKeyCredential(azureAIConfig.ApiKey)
+        );
+
+        return azureClient.GetChatClient(azureAIConfig.ChatDeploymentName);
     }
 }

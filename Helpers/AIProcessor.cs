@@ -1,9 +1,12 @@
-﻿#pragma warning disable SKEXP0050, SKEXP0001, SKEXP0070
+﻿#pragma warning disable SKEXP0050, SKEXP0001, SKEXP0070, AOAI001
 
 using System.Text;
+using System.Text.Json;
+using Azure.AI.OpenAI.Chat;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.VectorData;
+using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
@@ -15,6 +18,7 @@ using Microsoft.SemanticKernel.Plugins.Memory;
 using Microsoft.SemanticKernel.PromptTemplates.Handlebars;
 using Microsoft.SemanticKernel.Text;
 using MoreRAGFun.Models;
+using OpenAI.Chat;
 using SemanticKernelFun.Data;
 using SemanticKernelFun.Models;
 using Spectre.Console;
@@ -125,33 +129,7 @@ public static class AIProcessor
     {
         var KM = KernelHelper.GetKernelMemory(azureAIConfig, azureSearchConfig);
 
-        await KM.DeleteIndexAsync(azureSearchConfig.Index);
-
-        // Prompt the user for the folder path
-        string folderPath = AnsiConsole.Ask<string>(
-            "[blue]Enter the folder path to read files from:[/]"
-        );
-
-        Console.WriteLine("Import Start... ");
-
-        var files = Directory.GetFiles(folderPath);
-        foreach (var file in files)
-        {
-            AnsiConsole.MarkupLine($"[yellow]{Path.GetFileName(file.EscapeMarkup())}[/]");
-
-            await PollyHelper
-                .Retry()
-                .ExecuteAsync(async cancellationToken =>
-                {
-                    await KM.ImportTextAsync(
-                        text: await File.ReadAllTextAsync(file, cancellationToken),
-                        index: azureSearchConfig.Index,
-                        cancellationToken: cancellationToken
-                    );
-                });
-        }
-
-        Console.WriteLine("Import Complete!");
+        await RefreshDocumentIndex(KM, azureSearchConfig.Index);
 
         while (true)
         {
@@ -180,6 +158,37 @@ public static class AIProcessor
                 );
             }
         }
+    }
+
+    private static async Task RefreshDocumentIndex(IKernelMemory KM, string index)
+    {
+        await KM.DeleteIndexAsync(index);
+
+        // Prompt the user for the folder path
+        string folderPath = AnsiConsole.Ask<string>(
+            "[blue]Enter the folder path to read files from:[/]"
+        );
+
+        Console.WriteLine("Import Start... ");
+
+        var files = Directory.GetFiles(folderPath);
+        foreach (var file in files)
+        {
+            AnsiConsole.MarkupLine($"[yellow]{Path.GetFileName(file.EscapeMarkup())}[/]");
+
+            await PollyHelper
+                .Retry()
+                .ExecuteAsync(async cancellationToken =>
+                {
+                    await KM.ImportTextAsync(
+                        text: await File.ReadAllTextAsync(file, cancellationToken),
+                        index: index,
+                        cancellationToken: cancellationToken
+                    );
+                });
+        }
+
+        Console.WriteLine("Import Complete!");
     }
 
     public static async Task AzureAIChat(AzureAIConfig azureAIConfig)
@@ -238,6 +247,55 @@ public static class AIProcessor
 
                     Console.WriteLine($"{Path.GetFileName(file)}: {textFromImage}");
                 });
+        }
+    }
+
+    public static async Task AzureAIRAGSearchChatDataSource(
+        AzureAIConfig azureAIConfig,
+        AzureSearchConfig azureSearchConfig
+    )
+    {
+        var KM = KernelHelper.GetKernelMemory(azureAIConfig, azureSearchConfig);
+
+        await RefreshDocumentIndex(KM, azureSearchConfig.Index);
+
+        ChatCompletionOptions options = new();
+        options.AddDataSource(KernelHelper.GetAzureSearchChatDataSource(azureSearchConfig));
+
+        var chatClient = KernelHelper.GetAzureOpenAIClient(azureAIConfig);
+
+        while (true)
+        {
+            Console.Write("Enter your question: ");
+            var userQuestion = Console.ReadLine();
+
+            var chatUpdates = chatClient.CompleteChatStreamingAsync(
+                [new UserChatMessage(userQuestion)],
+                options
+            );
+            ChatMessageContext onYourDataContext = null;
+
+            await foreach (var chatUpdate in chatUpdates)
+            {
+                if (chatUpdate.Role.HasValue)
+                {
+                    Console.WriteLine($"{chatUpdate.Role}: ");
+                }
+                foreach (var contentPart in chatUpdate.ContentUpdate)
+                {
+                    Console.Write(contentPart.Text);
+                }
+                onYourDataContext = chatUpdate.GetMessageContext();
+            }
+            Console.WriteLine();
+            if (onYourDataContext?.Intent is not null)
+            {
+                Console.WriteLine($"Intent: {onYourDataContext.Intent}");
+            }
+            foreach (ChatCitation citation in onYourDataContext?.Citations ?? [])
+            {
+                Console.Write($"Citation: {citation.Content}");
+            }
         }
     }
 
