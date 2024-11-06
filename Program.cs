@@ -4,8 +4,6 @@ using SemanticKernelFun.Data;
 using SemanticKernelFun.Models;
 using Spectre.Console;
 
-var yo = await FileProcessor.ProcessFiles(@"C:\Users\andrew.j.herrick\Desktop\New folder");
-
 // Set up configuration and load user secrets
 var config = new ConfigurationBuilder().AddUserSecrets<Program>().Build();
 
@@ -44,27 +42,27 @@ while (true)
     {
         case OptionAzureChat:
 
-            await Processor.AzureAIChat(azureAIConfig);
+            await AIProcessor.AzureAIChat(azureAIConfig);
             break;
 
         case OptionAzureRAG:
 
-            await Processor.AzureAIRAG(azureAIConfig, azureSearchConfig);
+            await AIProcessor.AzureAIRAG(azureAIConfig, azureSearchConfig);
             break;
 
         case OptionAzureRAGVectorStore:
 
-            await Processor.AzureAIRAGVectorStore(azureAIConfig, azureSearchConfig);
+            await AIProcessor.AzureAIRAGVectorStore(azureAIConfig, azureSearchConfig);
             break;
 
         case OptionLocalChat:
 
-            await Processor.LocalAIChat(localAIConfig);
+            await AIProcessor.LocalAIChat(localAIConfig);
             break;
 
         case OptionLocalRAG:
 
-            await Processor.LocalAIRAG(localAIConfig);
+            await AIProcessor.LocalAIRAG(localAIConfig);
             break;
 
         case OptionExit:

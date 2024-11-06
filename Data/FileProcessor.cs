@@ -15,7 +15,7 @@ public class FileProcessor
     public static async Task<List<RawContentDocument>> ProcessFiles(string folderPath)
     {
         var rawContentDocuments = new List<RawContentDocument>();
-        var searchPatterns = new[] { "*.txt", "*.pdf", "*.csv", "*.doc", "*.docx", "*.xlsx" };
+        var searchPatterns = new[] { "*.txt", "*.pdf", "*.csv", "*.doc", "*.docx" };
 
         var files = searchPatterns.SelectMany(pattern => Directory.GetFiles(folderPath, pattern));
 
@@ -28,7 +28,6 @@ public class FileProcessor
                 ".pdf" => ProcessPdf(file),
                 ".csv" => ProcessCsv(file),
                 ".doc" or ".docx" => ProcessWord(file),
-                ".xlsx" => ProcessExcel(file),
                 _ => throw new NotImplementedException()
             };
 
@@ -83,26 +82,5 @@ public class FileProcessor
         }
 
         return new RawContentDocument { Text = text.ToString() };
-    }
-
-    private static RawContentDocument ProcessExcel(string filePath)
-    {
-        var text = new StringBuilder();
-
-        using var workbook = new XLWorkbook(filePath);
-        foreach (var worksheet in workbook.Worksheets)
-        {
-            var worksheetContent = new StringBuilder();
-
-            foreach (var row in worksheet.RowsUsed())
-            {
-                var rowValues = row.Cells().Select(cell => cell.GetValue<string>());
-                worksheetContent.AppendLine(string.Join(", ", rowValues));
-            }
-
-            text.AppendLine(worksheetContent.ToString().Trim());
-        }
-
-        return new RawContentDocument() { Text = text.ToString() };
     }
 }

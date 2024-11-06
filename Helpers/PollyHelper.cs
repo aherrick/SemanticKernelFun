@@ -5,9 +5,9 @@ using Polly.Retry;
 
 namespace SemanticKernelFun.Helpers;
 
-public static class UtilHelper
+public static class PollyHelper
 {
-    public static ResiliencePipeline Polly()
+    public static ResiliencePipeline Retry()
     {
         var retryOptions = new RetryStrategyOptions
         {

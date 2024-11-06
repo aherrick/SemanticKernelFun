@@ -2,16 +2,25 @@
 
 using System.Net;
 using System.Text;
+using System.Text.Json;
+using DocumentFormat.OpenXml.Spreadsheet;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Azure;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.VectorData;
 using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.SemanticKernel.Data;
 using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.SemanticKernel.Memory;
 using Microsoft.SemanticKernel.Plugins.Core;
 using Microsoft.SemanticKernel.Plugins.Memory;
+using Microsoft.SemanticKernel.PromptTemplates.Handlebars;
+using Microsoft.SemanticKernel.Text;
+using MongoDB.Bson.IO;
 using MoreRAGFun.Models;
 using SemanticKernelFun.Data;
 using SemanticKernelFun.Helpers;
@@ -23,7 +32,7 @@ using UglyToad.PdfPig.Graphics;
 
 namespace SemanticKernelFun;
 
-public static class Processor
+public static class AIProcessor
 {
     public static async Task LocalAIRAG(LocalAIConfig localAIConfig)
     {
@@ -141,8 +150,8 @@ public static class Processor
         {
             AnsiConsole.MarkupLine($"[yellow]{Path.GetFileName(file.EscapeMarkup())}[/]");
 
-            await UtilHelper
-                .Polly()
+            await PollyHelper
+                .Retry()
                 .ExecuteAsync(async cancellationToken =>
                 {
                     await KM.ImportTextAsync(
@@ -245,44 +254,170 @@ public static class Processor
         }
     }
 
-    internal static async Task AzureAIRAGVectorStore(
+    public static async Task AzureAIRAGVectorStore(
         AzureAIConfig azureAIConfig,
         AzureSearchConfig azureSearchConfig
     )
     {
+        var kernel = KernelHelper.GetKernelVectorStore(azureAIConfig, azureSearchConfig);
+
         // Prompt the user for the folder path
-        string folderPath = AnsiConsole.Ask<string>(
-            "[blue]Enter the folder path to read files from:[/]"
+
+        var folderPath = AnsiConsole.Prompt(
+            new TextPrompt<string>(
+                "[blue]Enter the folder path to read files from (Enter to skip):[/]"
+            ).AllowEmpty()
         );
 
-        var files = await FileProcessor.ProcessFiles(folderPath);
+        if (!string.IsNullOrWhiteSpace(folderPath))
+        {
+            Console.WriteLine("Ingesting Documents...");
 
-        var batches = files.Chunk(10);
+            var textEmbeddingGenerationService =
+                kernel.Services.GetRequiredService<ITextEmbeddingGenerationService>();
 
-        //// Process each batch of content items for images
-        //foreach (var batch in batches)
-        //{
-        //    // Map each paragraph to a TextSnippet and generate an embedding for it.
-        //    var recordTasks = batch.Select(async content => new TextSnippet<string>
-        //    {
-        //        Key = Guid.NewGuid().ToString(),
-        //        Text = content.Text,
-        //        ReferenceDescription = $"{new FileInfo(pdfPath).Name}#page={content.PageNumber}",
-        //        ReferenceLink =
-        //            $"{new Uri(new FileInfo(pdfPath).FullName).AbsoluteUri}#page={content.PageNumber}",
-        //        TextEmbedding = await GetEmbeddings(content.Text, textEmbeddingGenerationService)
-        //    });
+            var vectorStoreRecordService = kernel.GetRequiredService<
+                IVectorStoreRecordCollection<string, TextSnippet<string>>
+            >();
 
-        //    // Upsert the records into the vector store.
-        //    var records = await Task.WhenAll(recordTasks);
+            // just delete and readd for
+            await vectorStoreRecordService.DeleteCollectionAsync();
+            await vectorStoreRecordService.CreateCollectionIfNotExistsAsync();
 
-        //    var upsertedKeys = vectorStoreRecordService.UpsertBatchAsync(records);
-        //    await foreach (var key in upsertedKeys.ConfigureAwait(false))
-        //    {
-        //        Console.WriteLine($"Upserted record '{key}' into VectorDB");
-        //    }
+            var files = await FileProcessor.ProcessFiles(folderPath);
 
-        //    await Task.Delay(10_000);
-        //}
+            var batches = files.Chunk(10);
+
+            // Process each batch of content items for images
+            foreach (var batch in batches)
+            {
+                // [2] Chunk (split into shorter strings on natural boundaries)
+
+                var records = new List<TextSnippet<string>>();
+                foreach (var rcd in batch)
+                {
+                    var paragraphs = TextChunker.SplitPlainTextParagraphs([rcd.Text], 2000);
+
+                    foreach (var paragraph in paragraphs)
+                    {
+                        records.Add(
+                            new TextSnippet<string>()
+                            {
+                                Key = rcd.Id,
+                                Text = paragraph,
+                                ReferenceDescription = rcd.FileName,
+                                ReferenceLink = rcd.Id,
+                                TextEmbedding = await GetEmbeddings(
+                                    paragraph,
+                                    textEmbeddingGenerationService
+                                )
+                            }
+                        );
+                    }
+                }
+
+                var upsertedKeys = vectorStoreRecordService.UpsertBatchAsync(records);
+                await foreach (var key in upsertedKeys.ConfigureAwait(false))
+                {
+                    Console.WriteLine($"Upserted record '{key}' into VectorDB");
+                }
+
+                await Task.Delay(10_000);
+            }
+
+            Console.WriteLine("Ingesting Complete.");
+        }
+
+        var vectorStoreSearchService = kernel.GetRequiredService<
+            VectorStoreTextSearch<TextSnippet<string>>
+        >();
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("Assistant > Press enter with no prompt to exit.");
+
+        // Add a search plugin to the kernel which we will use in the template below
+        // to do a vector search for related information to the user query.
+        kernel.Plugins.Add(vectorStoreSearchService.CreateWithGetTextSearchResults("SearchPlugin"));
+
+        // Start the chat loop.
+        while (true)
+        {
+            // Prompt the user for a question.
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine(
+                $"Assistant > What would you like to know from the loaded documents?"
+            );
+
+            // Read the user question.
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("User > ");
+            var question = Console.ReadLine();
+
+            // Exit the application if the user didn't type anything.
+            if (string.IsNullOrWhiteSpace(question))
+            {
+                break;
+            }
+
+            // Invoke the LLM with a template that uses the search plugin to
+            // 1. get related information to the user query from the vector store
+            // 2. add the information to the LLM prompt.
+            var response = kernel.InvokePromptStreamingAsync(
+                promptTemplate: """
+                Please use this information to answer the question:
+                {{#with (SearchPlugin-GetTextSearchResults question)}}
+                  {{#each this}}
+                    Name: {{Name}}
+                    Value: {{Value}}
+                    Link: {{Link}}
+                    -----------------
+                  {{/each}}
+                {{/with}}
+
+                Include citations to the relevant information where it is referenced in the response.
+
+                Question: {{question}}
+                """,
+                arguments: new KernelArguments() { { "question", question }, },
+                templateFormat: "handlebars",
+                promptTemplateFactory: new HandlebarsPromptTemplateFactory()
+            );
+
+            // Stream the LLM response to the console with error handling.
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write("\nAssistant > ");
+
+            try
+            {
+                await foreach (var message in response)
+                {
+                    // Console.WriteLine(JsonSerializer.Serialize(message.Metadata));
+
+                    Console.Write(message);
+                }
+                Console.WriteLine();
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Call to LLM failed with error: {ex}");
+            }
+        }
+    }
+
+    private static async Task<ReadOnlyMemory<float>> GetEmbeddings(
+        string text,
+        ITextEmbeddingGenerationService textEmbeddingGenerationService
+    )
+    {
+        return await PollyHelper
+            .Retry()
+            .ExecuteAsync(async cancellationToken =>
+            {
+                return await textEmbeddingGenerationService.GenerateEmbeddingAsync(
+                    text,
+                    cancellationToken: cancellationToken
+                );
+            });
     }
 }
