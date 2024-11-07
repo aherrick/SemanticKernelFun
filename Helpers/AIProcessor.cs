@@ -299,6 +299,127 @@ public static class AIProcessor
         }
     }
 
+    public static async Task ChatToolRecipe(AzureAIConfig azureAIConfig)
+    {
+        var chatClient = KernelHelper.GetAzureOpenAIClient(azureAIConfig);
+
+        ChatTool tool = ChatTool.CreateFunctionTool(
+            "describe_recipe",
+            null,
+            BinaryData.FromObjectAsJson(
+                new
+                {
+                    Type = "object",
+                    Properties = new
+                    {
+                        AltText = new
+                        {
+                            Type = "string",
+                            Description = "Very short description of what is in the recipe, to be included as alt text for screen readers."
+                        },
+                        Title = new { Type = "string", Description = "Short title of the recipe" }
+                        //  Subject = new
+                        //  {
+                        //      Type = "string",
+                        //      Enum = photoTypes,
+                        //      Description = "Categorise the subject of the photo. If it shows one or more students or teachers, say 'people'. If it shows student work, for example artwork or an exercise book, " +
+                        //"say 'student work'. For anything else, say 'other'."
+                        //  }
+                    },
+                    Required = new[]
+                    {
+                        "AltText",
+                        "Title" /*, "Subject"*/
+                    }
+                },
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
+            )
+        );
+
+        var messages = new List<OpenAI.Chat.ChatMessage>
+        {
+            new SystemChatMessage(
+                "You are a helpful assistant who describes recipes. Be very brief, answering in a few words only. "
+            //+ "The photographs are for use in an Academy newsletter, and may include students, staff, or student work. When referring to people, "
+            //+ "use educational terms like 'teacher' and 'student'. Use the article topic to put the description in context. Use British English spelling."
+            ),
+            new UserChatMessage(
+                ChatMessageContentPart.CreateTextPart(
+                    """
+
+                    Ingredients
+                    For the soup:
+
+                    3 tablespoons olive oil
+                    2 medium carrots, thickly sliced
+                    1 large onion, coarsely chopped
+                    1 rib celery, coarsely chopped
+                    1 clove garlic, finely chopped
+                    3 sprigs fresh oregano
+                    1/4 teaspoon salt
+                    Black pepper, to taste
+                    2 (15-ounce) cans cannellini beans, or other small white beans, drained and rinsed
+                    5 cups chicken stock or vegetable stock
+                    4 cups baby kale or baby spinach, stems removed if tough
+                    1 tablespoon chopped fresh oregano, for garnish
+                    Olive oil, to serve
+                    Extra grated Parmesan, to serve
+                    For the parmesan toasts:
+
+                    1/2 baguette, thinly sliced
+                    Olive oil
+                    1/2 cup grated Parmesan
+
+                    Method
+                    Cook the vegetables:
+                    In a soup pot, heat the olive oil. When it is hot, add the carrots, onion, celery, garlic, fresh oregano sprigs, salt, and pepper. Cook, stirring often, for 10 minutes until the vegetables look softened and the onions turn translucent.
+
+                    Tuscan Bean Soup
+                    Sheryl Julian
+                    Prepare the beans:
+                    On a plate, mash 1/2 cup of the beans with a fork or potato masher. Add them to the vegetables in the pot. Cook, stirring, for 2 minutes.
+
+                    Tuscan Bean Soup
+                    Sheryl Julian
+                    Tuscan Bean Soup
+                    Sheryl Julian
+                    Simmer the soup:
+                    Add the remaining beans to the pot and stir well. Stir in the chicken stock and bring to a boil. Lower the heat, partially cover with the lid placed askew, and simmer for 20 minutes, or until the carrots are tender and the liquid is flavorful.
+
+                    Discard the oregano sprigs; the leaves will have fallen into the soup. Add additional salt and pepper to taste.
+
+                    While the soup simmers, make the Parmesan toasts:
+                    Toast the bread until lightly golden on both sides. While the toast is still hot from the toaster, sprinkle with olive oil and cheese. If you have a toaster oven, return them to the toaster for 1 minute to melt the cheese; otherwise, arrange the toasts in a skillet over medium heat, cover, and warm for about 1 minute or until the cheese has melted.
+
+                    Add the greens to the soup:
+                    Add the kale or spinach to the pot and simmer for another 2 minutes, or just until the greens wilt.
+
+                    Serve the soup:
+                    Ladle the soup into bowls, sprinkle with oregano and more olive oil, if you like. Serve with Parmesan toasts and extra Parmesan for sprinkling.
+
+                    """
+                )
+            //ChatMessageContentPart.CreateImageMessageContentPart(
+            //    photoUri,
+            //    ImageChatMessageContentPartDetail.Low
+            //)
+            )
+        };
+
+        var options = new ChatCompletionOptions
+        {
+            Temperature = 0,
+            // EndUserId = identifier,
+            Tools = { tool }
+        };
+
+        var response = await chatClient.CompleteChatAsync(messages, options);
+
+        var result = response.Value.ToolCalls[0].FunctionArguments.ToString();
+
+        Console.WriteLine(result);
+    }
+
     private static async Task AIChat(Kernel kernel)
     {
         kernel.Plugins.AddFromType<TimePlugin>();

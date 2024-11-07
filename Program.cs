@@ -19,6 +19,8 @@ const string OptionAzureChat = "Chat Basic (Azure)";
 const string OptionLocalRAG = "RAG Basic (Local)";
 const string OptionLocalChat = "Chat Basic (Local)";
 const string OptionImageDescription = "Image Description (Azure)";
+const string OptionChatToolRecipe = "Chat Tool Recipe (Azure)";
+
 const string OptionExit = "Exit";
 
 // Keep showing menu options until the user decides to exit
@@ -36,6 +38,7 @@ while (true)
                 OptionLocalChat,
                 OptionLocalRAG,
                 OptionImageDescription,
+                OptionChatToolRecipe,
                 OptionExit
             )
     );
@@ -76,6 +79,11 @@ while (true)
         case OptionImageDescription:
 
             await AIProcessor.ImageDescription(azureAIConfig);
+            break;
+
+        case OptionChatToolRecipe:
+
+            await AIProcessor.ChatToolRecipe(azureAIConfig);
             break;
 
         case OptionExit:
