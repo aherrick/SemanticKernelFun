@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using Polly;
+﻿using Polly;
 using Polly.Retry;
 
 namespace SemanticKernelFun.Helpers;

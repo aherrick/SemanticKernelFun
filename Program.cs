@@ -20,6 +20,7 @@ const string OptionLocalRAG = "RAG Basic (Local)";
 const string OptionLocalChat = "Chat Basic (Local)";
 const string OptionImageDescription = "Image Description (Azure)";
 const string OptionChatToolRecipe = "Chat Tool Recipe (Azure)";
+const string OptionAgentChat = "Agent Chat (Azure)";
 
 const string OptionExit = "Exit";
 
@@ -39,6 +40,7 @@ while (true)
                 OptionLocalRAG,
                 OptionImageDescription,
                 OptionChatToolRecipe,
+                OptionAgentChat,
                 OptionExit
             )
     );
@@ -84,6 +86,11 @@ while (true)
         case OptionChatToolRecipe:
 
             await AIProcessor.ChatToolRecipe(azureAIConfig);
+            break;
+
+        case OptionAgentChat:
+
+            await AIProcessor.AgentChat(azureAIConfig);
             break;
 
         case OptionExit:

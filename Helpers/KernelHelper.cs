@@ -4,7 +4,7 @@ using Azure;
 using Azure.AI.OpenAI;
 using Azure.AI.OpenAI.Chat;
 using Microsoft.KernelMemory;
-using Microsoft.KernelMemory.AI.OpenAI;
+using Microsoft.KernelMemory.AI;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Data;
 using MoreRAGFun.Models;
