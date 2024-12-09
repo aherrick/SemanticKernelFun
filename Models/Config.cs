@@ -7,6 +7,7 @@ public class AzureAIConfig
 
     public string ChatDeploymentName { get; set; }
     public string TextEmbeddingDeploymentName { get; set; }
+    public string WhisperDeploymentName { get; set; }
 }
 
 public class AzureSearchConfig

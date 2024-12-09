@@ -100,7 +100,7 @@ public static class KernelHelper
         return GetKernelBuilderChatCompletion(azureAIConfig).Build();
     }
 
-    private static IKernelBuilder GetKernelBuilderChatCompletion(AzureAIConfig azureAIConfig)
+    public static IKernelBuilder GetKernelBuilderChatCompletion(AzureAIConfig azureAIConfig)
     {
         return Kernel
             .CreateBuilder()

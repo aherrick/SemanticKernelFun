@@ -1,4 +1,4 @@
-﻿#pragma warning disable SKEXP0050, SKEXP0001, SKEXP0070, AOAI001, SKEXP0110
+﻿#pragma warning disable SKEXP0050, SKEXP0001, SKEXP0070, AOAI001, SKEXP0110, SKEXP0010
 
 using System.Text;
 using System.Text.Json;
@@ -10,7 +10,9 @@ using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Agents.Chat;
+using Microsoft.SemanticKernel.AudioToText;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.Data;
 using Microsoft.SemanticKernel.Embeddings;
@@ -20,10 +22,13 @@ using Microsoft.SemanticKernel.Plugins.Memory;
 using Microsoft.SemanticKernel.PromptTemplates.Handlebars;
 using Microsoft.SemanticKernel.Text;
 using MoreRAGFun.Models;
+using NAudio.Wave;
 using OpenAI.Chat;
 using SemanticKernelFun.Data;
 using SemanticKernelFun.Models;
 using Spectre.Console;
+using ChatMessageContent = Microsoft.SemanticKernel.ChatMessageContent;
+using TextContent = Microsoft.SemanticKernel.TextContent;
 
 namespace SemanticKernelFun.Helpers;
 
@@ -630,9 +635,8 @@ public static class AIProcessor
     // https://github.com/rwjdk/AiTalk2024/tree/main/src/AgentGroupChat
     public static async Task AgentChat(AzureAIConfig azureAIConfig)
     {
-        var builder = Kernel.CreateBuilder();
-        builder.AddAzureOpenAIChatCompletion(azureAIConfig.ChatDeploymentName, azureAIConfig.Endpoint, azureAIConfig.ApiKey);
-        Kernel kernel = builder.Build();
+        var kernel = KernelHelper.GetKernelChatCompletion(azureAIConfig);
+
         var storyTeller = new ChatCompletionAgent
         {
             Name = "StoryTeller",
@@ -646,14 +650,14 @@ public static class AIProcessor
         {
             Name = "Reviewer",
             Kernel = kernel,
-            Instructions = "You are a Surfer Dude Critic of Dragon stories. you like to use emojii a lot so include a bunch in your response. You're totally gnarly. You Rate the quality of stories! Review length a couple of sentences and always include a score of 1-10. If the story does not include anything about a Dragon then say 'whatever man!'",
+            Instructions = "You are a Surfer Dude Critic of Dragon stories. you like to use emojii a lot so include a bunch in your response. You're totally gnarly. You Rate the quality of stories! Review length a couple of sentences and always include a score of 1-10. Be crticial. If the story does not include anything about a Dragon then say 'whatever man!'",
         };
 
         var censor = new ChatCompletionAgent
         {
             Name = "Censor",
             Kernel = kernel,
-            Instructions = "Check if the StoryTeller told a story and if so Repeat the last story but replace the word 'Dragon' and all derivatives with the word '<CENSORED>'!. Do not write your own stories. If there however was no story just reply '😝'",
+            Instructions = "Check if the StoryTeller told a story and if so Repeat the last story but replace the word 'Dragon' and all derivatives with the word '<CENSORED>'!. Do not write your own stories.",
         };
 
         var groupChat = new AgentGroupChat(storyTeller, reviewer, censor)
@@ -708,6 +712,68 @@ public static class AIProcessor
 
         Console.WriteLine();
         Console.WriteLine("THE END");
+        Console.WriteLine();
+    }
+
+    public static async Task SpeachToTextChat(AzureAIConfig azureAIConfig)
+    {
+        var kernel = KernelHelper.GetKernelBuilderChatCompletion(azureAIConfig)
+                                .AddAzureOpenAIAudioToText(
+                                    deploymentName: azureAIConfig.WhisperDeploymentName,
+                                    endpoint: azureAIConfig.Endpoint,
+                                    apiKey: azureAIConfig.ApiKey
+                                ).Build();
+
+        var agent = new ChatCompletionAgent
+        {
+            Name = "MyAgent",
+            Kernel = kernel,
+            Instructions = "You are nice AI",
+            Arguments = new KernelArguments(
+                new AzureOpenAIPromptExecutionSettings
+                {
+                    Temperature = 1,
+                })
+        };
+
+        Console.WriteLine("Press any key to start recording mode...");
+        Console.ReadKey();
+        Console.WriteLine("Listening for your question... Press any key to stop.");
+        var waveFormat = new WaveFormat(44100, 1);
+        MemoryStream stream = new();
+        await using (var waveStream = new WaveFileWriter(stream, waveFormat))
+        {
+            using var waveIn = new WaveInEvent();
+            waveIn.WaveFormat = waveFormat;
+
+            waveIn.DataAvailable += (_, eventArgs) =>
+            {
+                waveStream.Write(eventArgs.Buffer, 0, eventArgs.BytesRecorded);
+            };
+
+            waveIn.StartRecording();
+            Console.ReadKey();
+        }
+
+        IAudioToTextService audioService = kernel.GetRequiredService<IAudioToTextService>();
+
+        var audioContent = new Microsoft.SemanticKernel.AudioContent(stream.ToArray().AsMemory(), "audio/wav");
+        TextContent questionAsText = await audioService.GetTextContentAsync(audioContent);
+        var question = questionAsText.Text!;
+        Console.WriteLine("Question: " + question);
+
+        var history = new ChatHistory();
+
+        history.AddUserMessage(question);
+
+        await foreach (var response in agent.InvokeStreamingAsync(history))
+        {
+            foreach (var content in response.Content ?? "")
+            {
+                Console.Write(content);
+            }
+        }
+
         Console.WriteLine();
     }
 

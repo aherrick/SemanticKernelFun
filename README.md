@@ -13,6 +13,7 @@
     "ApiKey": "",
     "ChatDeploymentName": "gpt-4o",
     "TextEmbeddingDeploymentName": "text-embedding-ada-002"
+    "WhisperDeploymentName": "whisper"
   },
   "AzureSearchConfig": {
     "Index": "default",

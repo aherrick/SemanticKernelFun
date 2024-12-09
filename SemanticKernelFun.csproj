@@ -15,7 +15,6 @@
 	  <PackageReference Include="Microsoft.KernelMemory.SemanticKernelPlugin" Version="0.94.241201.1" />
 
 	  <PackageReference Include="Microsoft.SemanticKernel" Version="1.31.0" />
-
 	  <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.31.0-alpha" />
 	  <PackageReference Include="Microsoft.SemanticKernel.Plugins.Core" Version="1.31.0-alpha" />
 	  <PackageReference Include="Microsoft.SemanticKernel.Plugins.Memory" Version="1.31.0-alpha" />
@@ -28,6 +27,8 @@
 	  <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
 	  <PackageReference Include="CsvHelper" Version="33.0.1" />
 	  <PackageReference Include="DocumentFormat.OpenXml" Version="3.2.0" />
+	  <PackageReference Include="NAudio" Version="2.2.1" />
+
   </ItemGroup>
 
   <ItemGroup>
