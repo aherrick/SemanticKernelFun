@@ -10,7 +10,6 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.VectorData;
 using Microsoft.KernelMemory;
-using Microsoft.KernelMemory.AI.Ollama;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Agents.Chat;
@@ -31,9 +30,6 @@ using OpenAI.Chat;
 using SemanticKernelFun.Data;
 using SemanticKernelFun.Models;
 using Spectre.Console;
-using StackExchange.Redis;
-using ChatMessageContent = Microsoft.SemanticKernel.ChatMessageContent;
-using TextContent = Microsoft.SemanticKernel.TextContent;
 
 namespace SemanticKernelFun.Helpers;
 
@@ -763,7 +759,7 @@ public static class AIProcessor
         IAudioToTextService audioService = kernel.GetRequiredService<IAudioToTextService>();
 
         var audioContent = new Microsoft.SemanticKernel.AudioContent(stream.ToArray().AsMemory(), "audio/wav");
-        TextContent questionAsText = await audioService.GetTextContentAsync(audioContent);
+        Microsoft.SemanticKernel.TextContent questionAsText = await audioService.GetTextContentAsync(audioContent);
         var question = questionAsText.Text!;
         Console.WriteLine("Question: " + question);
 
