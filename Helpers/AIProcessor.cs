@@ -1,12 +1,16 @@
 ﻿#pragma warning disable SKEXP0050, SKEXP0001, SKEXP0070, AOAI001, SKEXP0110, SKEXP0010
 
+using System.ClientModel;
+using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
+using Azure.AI.OpenAI;
 using Azure.AI.OpenAI.Chat;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.VectorData;
 using Microsoft.KernelMemory;
+using Microsoft.KernelMemory.AI.Ollama;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Agents.Chat;
@@ -27,6 +31,7 @@ using OpenAI.Chat;
 using SemanticKernelFun.Data;
 using SemanticKernelFun.Models;
 using Spectre.Console;
+using StackExchange.Redis;
 using ChatMessageContent = Microsoft.SemanticKernel.ChatMessageContent;
 using TextContent = Microsoft.SemanticKernel.TextContent;
 
@@ -775,6 +780,50 @@ public static class AIProcessor
         }
 
         Console.WriteLine();
+    }
+
+    public static async Task MsftExtensionAIChat(AzureAIConfig azureAIConfig)
+    {
+        var azureOpenAiClient = new AzureOpenAIClient(
+            new Uri(azureAIConfig.Endpoint),
+            new ApiKeyCredential(azureAIConfig.ApiKey));
+
+        IChatClient client = new ChatClientBuilder(azureOpenAiClient.AsChatClient(azureAIConfig.ChatDeploymentName))
+            .UseFunctionInvocation().Build();
+
+        while (true)
+        {
+            Console.Write("> ");
+            var question = Console.ReadLine() ?? "";
+            var response = client.CompleteStreamingAsync(
+                question,
+                new() { Tools = [AIFunctionFactory.Create(GetCurrentWeather)] });
+
+            await foreach (var update in response)
+            {
+                Console.Write(update);
+            }
+
+            Console.WriteLine();
+        }
+
+        [Description("Gets the current weather")]
+        static string GetCurrentWeather() => Random.Shared.NextDouble() > 0.5 ? "It's sunny" : "It's raining";
+    }
+
+    public static async Task OllamaChat(OllamaAIConfig ollamaAIConfig)
+    {
+        IChatClient client = new OllamaChatClient(new Uri(ollamaAIConfig.Endpoint), ollamaAIConfig.Endpoint);
+
+        Console.Write("> ");
+        var question = Console.ReadLine() ?? "";
+
+        Console.WriteLine();
+
+        await foreach (var update in client.CompleteStreamingAsync(question))
+        {
+            Console.Write(update);
+        }
     }
 
     private static async Task<ReadOnlyMemory<float>> GetEmbeddings(

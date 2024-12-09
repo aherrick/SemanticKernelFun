@@ -9,6 +9,7 @@ var config = new ConfigurationBuilder().AddUserSecrets<Program>().Build();
 var azureAIConfig = config.GetSection(nameof(AzureAIConfig)).Get<AzureAIConfig>();
 var azureSearchConfig = config.GetSection(nameof(AzureSearchConfig)).Get<AzureSearchConfig>();
 var localAIConfig = config.GetSection(nameof(LocalAIConfig)).Get<LocalAIConfig>();
+var ollamaAIConfig = config.GetSection(nameof(OllamaAIConfig)).Get<OllamaAIConfig>();
 
 // Define constants for menu options
 const string OptionAzureRAG = "RAG Basic (Azure)";
@@ -22,6 +23,8 @@ const string OptionImageDescription = "Image Description (Azure)";
 const string OptionChatToolRecipe = "Chat Tool Recipe (Azure)";
 const string OptionAgentChat = "Agent Chat (Azure)";
 const string OptionSpeechToText = "Speech To Text (Azure)";
+const string OptionMsftExtensionAIChat = "Microsoft Extension AI Chat (Azure)";
+const string OptionOllamaChat = "Ollama Chat (Local)";
 
 const string OptionExit = "Exit";
 
@@ -43,6 +46,9 @@ while (true)
                 OptionChatToolRecipe,
                 OptionAgentChat,
                 OptionSpeechToText,
+                OptionMsftExtensionAIChat,
+                OptionOllamaChat,
+
                 OptionExit
             )
     );
@@ -98,6 +104,16 @@ while (true)
         case OptionSpeechToText:
 
             await AIProcessor.SpeachToTextChat(azureAIConfig);
+            break;
+
+        case OptionMsftExtensionAIChat:
+
+            await AIProcessor.MsftExtensionAIChat(azureAIConfig);
+            break;
+
+        case OptionOllamaChat:
+
+            await AIProcessor.OllamaChat(ollamaAIConfig);
             break;
 
         case OptionExit:

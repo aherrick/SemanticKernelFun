@@ -20,6 +20,10 @@
     "Endpoint": "https://YOUR-AI-SEARCH.search.windows.net",
     "ApiKey": ""
   },
+  "OllamaAIConfig": {
+    "Endpoint": "http://localhost:11434/",
+    "ModelName": "llama3.3"
+  },
   "LocalAIConfig": {
     "PhiModelId": "Phi-3-mini-4k-instruct-onnx",
     "PhiModelPath": "c:\\models\\Phi-3-mini-4k-instruct-onnx\\cpu_and_mobile\\cpu-int4-rtn-block-32",

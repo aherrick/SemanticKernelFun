@@ -18,6 +18,12 @@ public class AzureSearchConfig
     public string ApiKey { get; set; }
 }
 
+public class OllamaAIConfig
+{
+    public string Endpoint { get; set; }
+    public string ModelName { get; set; }
+}
+
 public class LocalAIConfig
 {
     public string PhiModelId { get; set; }
