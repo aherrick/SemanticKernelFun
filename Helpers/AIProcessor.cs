@@ -809,7 +809,7 @@ public static class AIProcessor
 
     public static async Task OllamaChat(OllamaAIConfig ollamaAIConfig)
     {
-        IChatClient client = new OllamaChatClient(new Uri(ollamaAIConfig.Endpoint), ollamaAIConfig.Endpoint);
+        IChatClient client = new OllamaChatClient(new Uri(ollamaAIConfig.Endpoint), ollamaAIConfig.ModelName);
 
         Console.Write("> ");
         var question = Console.ReadLine() ?? "";
