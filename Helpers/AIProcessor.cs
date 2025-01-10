@@ -889,19 +889,21 @@ public static class AIProcessor
         // Create qdrant collection
         var qdrantRecords = new List<PointStruct>();
 
-        foreach (var item in zeldaRecords)
+        for (int i = 0; i < zeldaRecords.Count; i++)
         {
-            // Create an assign an embedding for each record
+            var item = zeldaRecords[i];
+
+            // Generate embedding for the record
             item.Embedding = (
                 await textEmbeddingGenerator.GenerateAsync([item.Name + ": " + item.Description])
             )[0]
                 .Vector.ToArray();
 
-            // Add each record and its embedding to the list that will be inserted into the databsae
+            // Add the record and its embedding to the list for database insertion
             qdrantRecords.Add(
-                new PointStruct()
+                new PointStruct
                 {
-                    Id = new PointId((uint)new Random().Next(0, 10000000)),
+                    Id = new PointId((uint)(i + 1)), // Use loop index + 1 as the unique ID
                     Vectors = item.Embedding,
                     Payload = { ["name"] = item.Name, ["description"] = item.Description }
                 }
