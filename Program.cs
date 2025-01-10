@@ -10,6 +10,7 @@ var azureAIConfig = config.GetSection(nameof(AzureAIConfig)).Get<AzureAIConfig>(
 var azureSearchConfig = config.GetSection(nameof(AzureSearchConfig)).Get<AzureSearchConfig>();
 var localAIConfig = config.GetSection(nameof(LocalAIConfig)).Get<LocalAIConfig>();
 var ollamaAIConfig = config.GetSection(nameof(OllamaAIConfig)).Get<OllamaAIConfig>();
+var qdrantClientConfig = config.GetSection(nameof(QdrantClientConfig)).Get<QdrantClientConfig>();
 
 // Define constants for menu options
 const string OptionAzureRAG = "RAG Basic (Azure)";
@@ -25,16 +26,18 @@ const string OptionAgentChat = "Agent Chat (Azure)";
 const string OptionSpeechToText = "Speech To Text (Azure)";
 const string OptionMsftExtensionAIChat = "Microsoft Extension AI Chat (Azure)";
 const string OptionOllamaChat = "Ollama Chat (Local)";
+const string OptionQdrantAILocalRagChat = "Qdrant AI Local Rag Chat";
 
-const string OptionExit = "Exit";
+const string OptionExit = "[red bold]Exit (Close the application)[/]"; // Change the color of the exit option to red and bold
 
 // Keep showing menu options until the user decides to exit
 while (true)
 {
-    // Show a selection menu with constants
+    // Prompt the user to choose an option
     var choice = AnsiConsole.Prompt(
         new SelectionPrompt<string>()
             .Title("[blue]Choose an option:[/]")
+            .PageSize(int.MaxValue) // Adjust the number to display more options
             .AddChoices(
                 OptionAzureChat,
                 OptionAzureRAGVectorStore,
@@ -48,7 +51,7 @@ while (true)
                 OptionSpeechToText,
                 OptionMsftExtensionAIChat,
                 OptionOllamaChat,
-
+                OptionQdrantAILocalRagChat,
                 OptionExit
             )
     );
@@ -114,6 +117,11 @@ while (true)
         case OptionOllamaChat:
 
             await AIProcessor.OllamaChat(ollamaAIConfig);
+            break;
+
+        case OptionQdrantAILocalRagChat:
+
+            await AIProcessor.QdrantAILocalRag(qdrantClientConfig, ollamaAIConfig);
             break;
 
         case OptionExit:

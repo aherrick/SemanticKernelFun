@@ -7,13 +7,13 @@
  
  ```
 
- {
+{
   "AzureAIConfig": {
     "Endpoint": "https://YOUR-AI.openai.azure.com/",
     "ApiKey": "",
-    "ChatDeploymentName": "gpt-4o",
-    "TextEmbeddingDeploymentName": "text-embedding-ada-002"
-    "WhisperDeploymentName": "whisper"
+    "ChatModelName": "gpt-4o",
+    "TextEmbeddingModelName": "text-embedding-ada-002",
+    "WhisperModelName": "whisper"
   },
   "AzureSearchConfig": {
     "Index": "default",
@@ -22,13 +22,18 @@
   },
   "OllamaAIConfig": {
     "Endpoint": "http://localhost:11434/",
-    "ModelName": "llama3.3"
+    "ChatModelName": "llama3.3",
+    "TextEmbeddingModelName": "nomic-embed-text"
   },
   "LocalAIConfig": {
     "PhiModelId": "Phi-3-mini-4k-instruct-onnx",
     "PhiModelPath": "c:\\models\\Phi-3-mini-4k-instruct-onnx\\cpu_and_mobile\\cpu-int4-rtn-block-32",
     "BgeModelPath": "c:\\models\\bge-micro-v2\\onnx\\model.onnx",
     "BgeModelVocabPath": "c:\\models\\bge-micro-v2\\vocab.txt"
+  },
+  "QdrantClientConfig": {
+    "Endpoint": "YOUR-AI.cloud.qdrant.io",
+    "ApiKey": ""
   }
 }
 

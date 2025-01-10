@@ -27,6 +27,8 @@ using Microsoft.SemanticKernel.Text;
 using MoreRAGFun.Models;
 using NAudio.Wave;
 using OpenAI.Chat;
+using Qdrant.Client;
+using Qdrant.Client.Grpc;
 using SemanticKernelFun.Data;
 using SemanticKernelFun.Models;
 using Spectre.Console;
@@ -310,7 +312,11 @@ public static class AIProcessor
     public static async Task ChatToolRecipe(AzureAIConfig azureAIConfig)
     {
         var chatClient = KernelHelper.GetAzureOpenAIClient(azureAIConfig);
-
+        string[] requiredFields =
+        [
+            "AltText",
+            "Title" /*, "Subject"*/
+        ];
         ChatTool tool = ChatTool.CreateFunctionTool(
             "describe_recipe",
             null,
@@ -334,16 +340,11 @@ public static class AIProcessor
                         //"say 'student work'. For anything else, say 'other'."
                         //  }
                     },
-                    Required = new[]
-                    {
-                        "AltText",
-                        "Title" /*, "Subject"*/
-                    }
+                    Required = requiredFields
                 },
                 new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
             )
         );
-
         var messages = new List<OpenAI.Chat.ChatMessage>
         {
             new SystemChatMessage(
@@ -642,49 +643,62 @@ public static class AIProcessor
         {
             Name = "StoryTeller",
             Kernel = kernel,
-            Instructions = "You are a StoryTeller that tell short 100 words stories about dragons. " +
-                   "Mention the word Dragon as much as possible. " +
-                   "If you see one of your stories are Censored you get angry and refuse to tell more stories (give a long answer why this is unfair and include the words 'NO MORE STORIES').",
+            Instructions =
+                "You are a StoryTeller that tell short 100 words stories about dragons. "
+                + "Mention the word Dragon as much as possible. "
+                + "If you see one of your stories are Censored you get angry and refuse to tell more stories (give a long answer why this is unfair and include the words 'NO MORE STORIES').",
         };
 
         var reviewer = new ChatCompletionAgent
         {
             Name = "Reviewer",
             Kernel = kernel,
-            Instructions = "You are a Surfer Dude Critic of Dragon stories. you like to use emojii a lot so include a bunch in your response. You're totally gnarly. You Rate the quality of stories! Review length a couple of sentences and always include a score of 1-10. Be crticial. If the story does not include anything about a Dragon then say 'whatever man!'",
+            Instructions =
+                "You are a Surfer Dude Critic of Dragon stories. you like to use emojii a lot so include a bunch in your response. You're totally gnarly. You Rate the quality of stories! Review length a couple of sentences and always include a score of 1-10. Be crticial. If the story does not include anything about a Dragon then say 'whatever man!'",
         };
 
         var censor = new ChatCompletionAgent
         {
             Name = "Censor",
             Kernel = kernel,
-            Instructions = "Check if the StoryTeller told a story and if so Repeat the last story but replace the word 'Dragon' and all derivatives with the word '<CENSORED>'!. Do not write your own stories.",
+            Instructions =
+                "Check if the StoryTeller told a story and if so Repeat the last story but replace the word 'Dragon' and all derivatives with the word '<CENSORED>'!. Do not write your own stories.",
         };
 
         var groupChat = new AgentGroupChat(storyTeller, reviewer, censor)
         {
             ExecutionSettings = new AgentGroupChatSettings
             {
-                SelectionStrategy = new SequentialSelectionStrategy
-                {
-                    InitialAgent = storyTeller,
-                },
+                SelectionStrategy = new SequentialSelectionStrategy { InitialAgent = storyTeller, },
                 TerminationStrategy = new RegexTerminationStrategy("NO MORE STORIES")
             },
         };
 
         Console.OutputEncoding = Encoding.UTF8;
         Console.WriteLine("Meet our chat-participants");
-        Console.WriteLine("- John is our StoryTeller; he love telling stories about dragons... But it a bit edgy if people mess with his stories");
-        Console.WriteLine("- Wayne is our Reviewer... When he does not surf 🏄 he rate dragon stories");
-        Console.WriteLine("- Mr. Smith is a Censor... His biggest goal in life if to censor stories... Especially about dragons!");
-        Console.WriteLine("Press any key to see how these three get along if you drop them into a group-chat...");
+        Console.WriteLine(
+            "- John is our StoryTeller; he love telling stories about dragons... But it a bit edgy if people mess with his stories"
+        );
+        Console.WriteLine(
+            "- Wayne is our Reviewer... When he does not surf 🏄 he rate dragon stories"
+        );
+        Console.WriteLine(
+            "- Mr. Smith is a Censor... His biggest goal in life if to censor stories... Especially about dragons!"
+        );
+        Console.WriteLine(
+            "Press any key to see how these three get along if you drop them into a group-chat..."
+        );
         Console.ReadKey();
         Console.Clear();
 
         Console.Write("What should the story be about (other than dragons of course...): ");
         var question = Console.ReadLine() ?? "";
-        groupChat.AddChatMessage(new Microsoft.SemanticKernel.ChatMessageContent(AuthorRole.User, "tell a story about: " + question));
+        groupChat.AddChatMessage(
+            new Microsoft.SemanticKernel.ChatMessageContent(
+                AuthorRole.User,
+                "tell a story about: " + question
+            )
+        );
 
         IAsyncEnumerable<StreamingChatMessageContent> response = groupChat.InvokeStreamingAsync();
         string speaker = string.Empty;
@@ -718,12 +732,14 @@ public static class AIProcessor
 
     public static async Task SpeachToTextChat(AzureAIConfig azureAIConfig)
     {
-        var kernel = KernelHelper.GetKernelBuilderChatCompletion(azureAIConfig)
-                                .AddAzureOpenAIAudioToText(
-                                    deploymentName: azureAIConfig.WhisperDeploymentName,
-                                    endpoint: azureAIConfig.Endpoint,
-                                    apiKey: azureAIConfig.ApiKey
-                                ).Build();
+        var kernel = KernelHelper
+            .GetKernelBuilderChatCompletion(azureAIConfig)
+            .AddAzureOpenAIAudioToText(
+                deploymentName: azureAIConfig.WhisperModelName,
+                endpoint: azureAIConfig.Endpoint,
+                apiKey: azureAIConfig.ApiKey
+            )
+            .Build();
 
         var agent = new ChatCompletionAgent
         {
@@ -731,10 +747,8 @@ public static class AIProcessor
             Kernel = kernel,
             Instructions = "You are nice AI",
             Arguments = new KernelArguments(
-                new AzureOpenAIPromptExecutionSettings
-                {
-                    Temperature = 1,
-                })
+                new AzureOpenAIPromptExecutionSettings { Temperature = 1, }
+            )
         };
 
         Console.WriteLine("Press any key to start recording mode...");
@@ -758,8 +772,12 @@ public static class AIProcessor
 
         IAudioToTextService audioService = kernel.GetRequiredService<IAudioToTextService>();
 
-        var audioContent = new Microsoft.SemanticKernel.AudioContent(stream.ToArray().AsMemory(), "audio/wav");
-        Microsoft.SemanticKernel.TextContent questionAsText = await audioService.GetTextContentAsync(audioContent);
+        var audioContent = new Microsoft.SemanticKernel.AudioContent(
+            stream.ToArray().AsMemory(),
+            "audio/wav"
+        );
+        Microsoft.SemanticKernel.TextContent questionAsText =
+            await audioService.GetTextContentAsync(audioContent);
         var question = questionAsText.Text!;
         Console.WriteLine("Question: " + question);
 
@@ -782,10 +800,14 @@ public static class AIProcessor
     {
         var azureOpenAiClient = new AzureOpenAIClient(
             new Uri(azureAIConfig.Endpoint),
-            new ApiKeyCredential(azureAIConfig.ApiKey));
+            new ApiKeyCredential(azureAIConfig.ApiKey)
+        );
 
-        IChatClient client = new ChatClientBuilder(azureOpenAiClient.AsChatClient(azureAIConfig.ChatDeploymentName))
-            .UseFunctionInvocation().Build();
+        IChatClient client = new ChatClientBuilder(
+            azureOpenAiClient.AsChatClient(azureAIConfig.ChatModelName)
+        )
+            .UseFunctionInvocation()
+            .Build();
 
         while (true)
         {
@@ -793,7 +815,8 @@ public static class AIProcessor
             var question = Console.ReadLine() ?? "";
             var response = client.CompleteStreamingAsync(
                 question,
-                new() { Tools = [AIFunctionFactory.Create(GetCurrentWeather)] });
+                new() { Tools = [AIFunctionFactory.Create(GetCurrentWeather)] }
+            );
 
             await foreach (var update in response)
             {
@@ -804,12 +827,16 @@ public static class AIProcessor
         }
 
         [Description("Gets the current weather")]
-        static string GetCurrentWeather() => Random.Shared.NextDouble() > 0.5 ? "It's sunny" : "It's raining";
+        static string GetCurrentWeather() =>
+            Random.Shared.NextDouble() > 0.5 ? "It's sunny" : "It's raining";
     }
 
     public static async Task OllamaChat(OllamaAIConfig ollamaAIConfig)
     {
-        IChatClient client = new OllamaChatClient(new Uri(ollamaAIConfig.Endpoint), ollamaAIConfig.ModelName);
+        IChatClient client = new OllamaChatClient(
+            new Uri(ollamaAIConfig.Endpoint),
+            ollamaAIConfig.ChatModelName
+        );
 
         Console.Write("> ");
         var question = Console.ReadLine() ?? "";
@@ -819,6 +846,153 @@ public static class AIProcessor
         await foreach (var update in client.CompleteStreamingAsync(question))
         {
             Console.Write(update);
+        }
+    }
+
+    public static async Task QdrantAILocalRag(
+        QdrantClientConfig qdrantClientConfig,
+        OllamaAIConfig ollamaAIConfig
+    )
+    {
+        QdrantClient qClient =
+            new(host: qdrantClientConfig.Endpoint, https: true, apiKey: qdrantClientConfig.ApiKey);
+
+        OllamaEmbeddingGenerator textEmbeddingGenerator =
+            new(new Uri(ollamaAIConfig.Endpoint), ollamaAIConfig.TextEmbeddingModelName);
+
+        OllamaChatClient chatClient =
+            new(new Uri(ollamaAIConfig.Endpoint), ollamaAIConfig.ChatModelName);
+
+        Console.WriteLine($"Loading records...");
+        var zeldaRecords = new List<ZeldaRecord>();
+
+        // Add locations
+        string locationsRaw = File.ReadAllText("SampleDocuments/zelda-locations.json");
+        zeldaRecords.AddRange(JsonSerializer.Deserialize<List<ZeldaRecord>>(locationsRaw));
+
+        // Add bosses
+        string bossesRaw = File.ReadAllText("SampleDocuments/zelda-bosses.json");
+        zeldaRecords.AddRange(JsonSerializer.Deserialize<List<ZeldaRecord>>(bossesRaw));
+
+        // Add characters
+        string charactersRaw = File.ReadAllText("SampleDocuments/zelda-characters.json");
+        zeldaRecords.AddRange(JsonSerializer.Deserialize<List<ZeldaRecord>>(charactersRaw));
+
+        // Add dungeons
+        string dungeonsRaw = File.ReadAllText("SampleDocuments/zelda-dungeons.json");
+        zeldaRecords.AddRange(JsonSerializer.Deserialize<List<ZeldaRecord>>(dungeonsRaw));
+
+        // Add games
+        string gamesRaw = File.ReadAllText("SampleDocuments/zelda-games.json");
+        zeldaRecords.AddRange(JsonSerializer.Deserialize<List<ZeldaRecord>>(gamesRaw));
+
+        // Create qdrant collection
+        var qdrantRecords = new List<PointStruct>();
+
+        foreach (var item in zeldaRecords)
+        {
+            // Create an assign an embedding for each record
+            item.Embedding = (
+                await textEmbeddingGenerator.GenerateAsync([item.Name + ": " + item.Description])
+            )[0]
+                .Vector.ToArray();
+
+            // Add each record and its embedding to the list that will be inserted into the databsae
+            qdrantRecords.Add(
+                new PointStruct()
+                {
+                    Id = new PointId((uint)new Random().Next(0, 10000000)),
+                    Vectors = item.Embedding,
+                    Payload = { ["name"] = item.Name, ["description"] = item.Description }
+                }
+            );
+        }
+
+        await qClient.DeleteCollectionAsync("zelda-database");
+
+        // Create the db collection
+        await qClient.CreateCollectionAsync(
+            "zelda-database",
+            new VectorParams { Size = 768, Distance = Distance.Cosine }
+        );
+
+        // Insert the records into the database
+        await qClient.UpsertAsync("zelda-database", qdrantRecords);
+        Console.WriteLine("Finished inserting records!");
+
+        var collections = await qClient.ListCollectionsAsync();
+
+        foreach (var collection in collections)
+        {
+            Console.WriteLine(collection);
+        }
+
+        Console.ReadLine();
+
+        Console.WriteLine(
+            "Ask a question. This bot is grounded in Zelda data due to RAG, so it's good at those topics."
+        );
+
+        while (true)
+        {
+            Console.WriteLine();
+
+            // Create chat history
+            List<Microsoft.Extensions.AI.ChatMessage> chatHistory = [];
+
+            // Get user prompt
+            var userPrompt = Console.ReadLine();
+
+            //    who are the bosses
+            //give me some locations
+
+            // Create an embedding version of the prompt
+            var promptEmbedding = (await textEmbeddingGenerator.GenerateAsync([userPrompt]))[0]
+                .Vector.ToArray();
+
+            // Run a vector search using the prompt embedding
+            var returnedLocations = await qClient.QueryAsync(
+                collectionName: "zelda-database",
+                query: promptEmbedding,
+                limit: 25
+            );
+
+            // Use this for grounded chat
+            // Add the returned records from the vector search to the prompt
+            var builder = new StringBuilder();
+            foreach (var location in returnedLocations)
+            {
+                builder.AppendLine(
+                    $"{location.Payload["name"].StringValue}: {location.Payload["description"].StringValue}."
+                );
+            }
+
+            // Assemble the full prompt to the chat AI model using instructions,
+            // the original user prompt, and the retrieved relevant data
+            chatHistory.Add(
+                new Microsoft.Extensions.AI.ChatMessage(
+                    ChatRole.User,
+                    @$"Your are an intelligent, cheerful assistant who prioritizes answers to user questions using the data in this conversation.
+                If you do not know the answer, say 'I don't know.'.
+                Answer the following question:
+
+                [Question]
+                {userPrompt}
+
+                Prioritize the following data to answer the question:
+                [Data]
+                {builder}
+    "
+                )
+            );
+
+            // Stream the AI response and add to chat history
+            Console.WriteLine("AI Response:");
+            await foreach (var item in chatClient.CompleteStreamingAsync(chatHistory))
+            {
+                Console.Write(item.Text);
+            }
+            Console.WriteLine();
         }
     }
 

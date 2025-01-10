@@ -16,7 +16,7 @@ public static class PollyHelper
             {
                 Console.WriteLine(arg);
 
-                return TimeSpan.FromSeconds(10); // todo look into using rate limit arg.Outcome.Exception is RateLimitedException rateLimitedException
+                return await Task.FromResult(TimeSpan.FromSeconds(10)); //
             },
             UseJitter = true,
             OnRetry = args =>

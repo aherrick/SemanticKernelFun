@@ -5,9 +5,9 @@ public class AzureAIConfig
     public string Endpoint { get; set; }
     public string ApiKey { get; set; }
 
-    public string ChatDeploymentName { get; set; }
-    public string TextEmbeddingDeploymentName { get; set; }
-    public string WhisperDeploymentName { get; set; }
+    public string ChatModelName { get; set; }
+    public string TextEmbeddingModelName { get; set; }
+    public string WhisperModelName { get; set; }
 }
 
 public class AzureSearchConfig
@@ -21,7 +21,8 @@ public class AzureSearchConfig
 public class OllamaAIConfig
 {
     public string Endpoint { get; set; }
-    public string ModelName { get; set; }
+    public string ChatModelName { get; set; }
+    public string TextEmbeddingModelName { get; set; }
 }
 
 public class LocalAIConfig
@@ -30,4 +31,10 @@ public class LocalAIConfig
     public string PhiModelPath { get; set; }
     public string BgeModelPath { get; set; }
     public string BgeModelVocabPath { get; set; }
+}
+
+public class QdrantClientConfig
+{
+    public string Endpoint { get; set; }
+    public string ApiKey { get; set; }
 }

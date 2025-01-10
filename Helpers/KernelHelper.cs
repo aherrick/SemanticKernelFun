@@ -25,7 +25,7 @@ public static class KernelHelper
                 new AzureOpenAIConfig
                 {
                     APIType = AzureOpenAIConfig.APITypes.ChatCompletion,
-                    Deployment = azureAIConfig.ChatDeploymentName,
+                    Deployment = azureAIConfig.ChatModelName,
                     Endpoint = azureAIConfig.Endpoint,
                     APIKey = azureAIConfig.ApiKey,
                     Auth = AzureOpenAIConfig.AuthTypes.APIKey
@@ -35,7 +35,7 @@ public static class KernelHelper
                 new AzureOpenAIConfig()
                 {
                     APIType = AzureOpenAIConfig.APITypes.EmbeddingGeneration,
-                    Deployment = azureAIConfig.TextEmbeddingDeploymentName,
+                    Deployment = azureAIConfig.TextEmbeddingModelName,
                     Endpoint = azureAIConfig.Endpoint,
                     APIKey = azureAIConfig.ApiKey,
                     Auth = AzureOpenAIConfig.AuthTypes.APIKey
@@ -105,7 +105,7 @@ public static class KernelHelper
         return Kernel
             .CreateBuilder()
             .AddAzureOpenAIChatCompletion(
-                deploymentName: azureAIConfig.ChatDeploymentName,
+                deploymentName: azureAIConfig.ChatModelName,
                 endpoint: azureAIConfig.Endpoint,
                 apiKey: azureAIConfig.ApiKey
             );
@@ -119,7 +119,7 @@ public static class KernelHelper
         var kernelBuilder = GetKernelBuilderChatCompletion(azureAIConfig);
 
         kernelBuilder.AddAzureOpenAITextEmbeddingGeneration(
-            deploymentName: azureAIConfig.TextEmbeddingDeploymentName,
+            deploymentName: azureAIConfig.TextEmbeddingModelName,
             endpoint: azureAIConfig.Endpoint,
             apiKey: azureAIConfig.ApiKey
         );
@@ -173,6 +173,6 @@ public static class KernelHelper
             new System.ClientModel.ApiKeyCredential(azureAIConfig.ApiKey)
         );
 
-        return azureClient.GetChatClient(azureAIConfig.ChatDeploymentName);
+        return azureClient.GetChatClient(azureAIConfig.ChatModelName);
     }
 }
