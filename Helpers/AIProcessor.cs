@@ -863,7 +863,7 @@ public static class AIProcessor
         OllamaChatClient chatClient =
             new(new Uri(ollamaAIConfig.Endpoint), ollamaAIConfig.ChatModelName);
 
-        Console.WriteLine($"Loading records...");
+        Console.WriteLine($"Loading data...");
         var zeldaRecords = new List<ZeldaRecord>();
 
         // Add locations
@@ -918,16 +918,6 @@ public static class AIProcessor
 
         // Insert the records into the database
         await qClient.UpsertAsync("zelda-database", qdrantRecords);
-        Console.WriteLine("Finished inserting records!");
-
-        var collections = await qClient.ListCollectionsAsync();
-
-        foreach (var collection in collections)
-        {
-            Console.WriteLine(collection);
-        }
-
-        Console.ReadLine();
 
         Console.WriteLine(
             "Ask a question. This bot is grounded in Zelda data due to RAG, so it's good at those topics."
