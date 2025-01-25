@@ -1,7 +1,6 @@
-﻿#pragma warning disable SKEXP0050, SKEXP0001, SKEXP0070, AOAI001, SKEXP0110, SKEXP0010
+﻿#pragma warning disable SKEXP0050, SKEXP0001, SKEXP0070, AOAI001, SKEXP0110, SKEXP0010, SKEXP0060, SKEXP0101, SKEXP0101, SKEXP0110
 
 using System.ClientModel;
-using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 using Azure.AI.OpenAI;
@@ -20,6 +19,8 @@ using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.Data;
 using Microsoft.SemanticKernel.Embeddings;
 using Microsoft.SemanticKernel.Memory;
+using Microsoft.SemanticKernel.Planning;
+using Microsoft.SemanticKernel.Planning.Handlebars;
 using Microsoft.SemanticKernel.Plugins.Core;
 using Microsoft.SemanticKernel.Plugins.Memory;
 using Microsoft.SemanticKernel.PromptTemplates.Handlebars;
@@ -31,6 +32,9 @@ using Qdrant.Client;
 using Qdrant.Client.Grpc;
 using SemanticKernelFun.Data;
 using SemanticKernelFun.Models;
+using SemanticKernelFun.Plugins.InventoryPlanner;
+using SemanticKernelFun.Plugins.TransferOrderPlanner;
+using SemanticKernelFun.Plugins.TripPlanner;
 using Spectre.Console;
 
 namespace SemanticKernelFun.Helpers;
@@ -664,6 +668,7 @@ public static class AIProcessor
             Instructions =
                 "Check if the StoryTeller told a story and if so Repeat the last story but replace the word 'Dragon' and all derivatives with the word '<CENSORED>'!. Do not write your own stories.",
         };
+#pragma warning restore SKEXP0101 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
         var groupChat = new AgentGroupChat(storyTeller, reviewer, censor)
         {
@@ -794,41 +799,6 @@ public static class AIProcessor
         }
 
         Console.WriteLine();
-    }
-
-    public static async Task MsftExtensionAIChat(AzureAIConfig azureAIConfig)
-    {
-        var azureOpenAiClient = new AzureOpenAIClient(
-            new Uri(azureAIConfig.Endpoint),
-            new ApiKeyCredential(azureAIConfig.ApiKey)
-        );
-
-        IChatClient client = new ChatClientBuilder(
-            azureOpenAiClient.AsChatClient(azureAIConfig.ChatModelName)
-        )
-            .UseFunctionInvocation()
-            .Build();
-
-        while (true)
-        {
-            Console.Write("> ");
-            var question = Console.ReadLine() ?? "";
-            var response = client.CompleteStreamingAsync(
-                question,
-                new() { Tools = [AIFunctionFactory.Create(GetCurrentWeather)] }
-            );
-
-            await foreach (var update in response)
-            {
-                Console.Write(update);
-            }
-
-            Console.WriteLine();
-        }
-
-        [Description("Gets the current weather")]
-        static string GetCurrentWeather() =>
-            Random.Shared.NextDouble() > 0.5 ? "It's sunny" : "It's raining";
     }
 
     public static async Task OllamaChat(OllamaAIConfig ollamaAIConfig)
@@ -988,6 +958,201 @@ public static class AIProcessor
         }
     }
 
+    public static async Task InventoryPlanner(AzureAIConfig azureAIConfig, PlannerType plannerType)
+    {
+        var KernelChat = KernelHelper.GetKernelChatCompletion(azureAIConfig);
+
+        KernelChat.Plugins.AddFromType<InventoryAgentPlugin>();
+
+        // Provide a natural language goal
+        var userGoal =
+            "Add 5 iphone 15s and 10 dell laptops to inventory, then remove 2 of those phones and check stock of laptops and phones.";
+
+        Console.WriteLine("User Goal:");
+        Console.WriteLine(userGoal);
+
+        if (plannerType == PlannerType.Stepwise)
+        {
+            var planner = new FunctionCallingStepwisePlanner();
+            var result = await planner.ExecuteAsync(KernelChat, userGoal);
+
+            foreach (var line in result.ChatHistory)
+            {
+                Console.WriteLine(line);
+            }
+
+            Console.WriteLine(result.FinalAnswer);
+        }
+        else if (plannerType == PlannerType.Handlebars)
+        {
+            var handlebar = new HandlebarsPlanner();
+            var handlebarPlan = await handlebar.CreatePlanAsync(KernelChat, userGoal);
+
+            Console.WriteLine(handlebarPlan.Prompt);
+            Console.WriteLine(handlebarPlan);
+
+            var handlebarResult = await handlebarPlan.InvokeAsync(KernelChat);
+
+            Console.WriteLine(handlebarResult);
+        }
+    }
+
+    public static async Task TripPlanner(AzureAIConfig azureAIConfig)
+    {
+        var KernelChat = KernelHelper.GetKernelChatCompletion(azureAIConfig);
+
+        KernelChat.Plugins.AddFromType<TripPlannerPlugin>(); // <----- This is anew fellow on this Part 3 - TripPlanner. Let's add it to the Kernel
+        KernelChat.Plugins.AddFromType<TimeTellerPlugin>(); // <----- This is the same fellow plugin from Part 2
+        KernelChat.Plugins.AddFromType<ElectricCarPlugin>(); // <----- This is the same fellow plugin from Part 2
+        KernelChat.Plugins.AddFromType<WeatherForecasterPlugin>(); // <----- New plugin. We don't want to end up in beach with rain, right?
+
+        IChatCompletionService chatCompletionService =
+            KernelChat.GetRequiredService<IChatCompletionService>();
+
+        ChatHistory chatMessages = new ChatHistory(
+            """
+You are a friendly assistant who likes to follow the rules. You will complete required steps
+and request approval before taking any consequential actions. If the user doesn't provide
+enough information for you to complete a task, you will keep asking questions until you have
+enough information to complete the task.
+"""
+        );
+
+        while (true)
+        {
+            Console.Write("User > ");
+            chatMessages.AddUserMessage(Console.ReadLine()!);
+
+            OpenAIPromptExecutionSettings settings =
+                new() { ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions };
+            var result = chatCompletionService.GetStreamingChatMessageContentsAsync(
+                chatMessages,
+                executionSettings: settings,
+                kernel: KernelChat
+            );
+
+            Console.Write("Assistant > ");
+            // Stream the results
+            string fullMessage = "";
+            await foreach (var content in result)
+            {
+                Console.Write(content.Content);
+                fullMessage += content.Content;
+            }
+            Console.WriteLine("\n--------------------------------------------------------------");
+
+            // Add the message from the agent to the chat history
+            chatMessages.AddAssistantMessage(fullMessage);
+        }
+    }
+
+    public static async Task TransferOrderPlanner(AzureAIConfig azureAIConfig)
+    {
+        var KernelChat = KernelHelper.GetKernelChatCompletion(azureAIConfig);
+
+        // Initialize the TransferOrderPlugin
+        var transferOrderPlugin = new TransferOrderPlugin(KernelChat);
+
+        // Inventory data
+        var inventoryData = new Dictionary<string, Dictionary<string, int>>
+        {
+            {
+                "Warehouse A",
+                new Dictionary<string, int>
+                {
+                    { "Item1", 200 },
+                    { "Item2", 150 },
+                    { "Item3", 50 }
+                }
+            },
+            {
+                "Warehouse B",
+                new Dictionary<string, int>
+                {
+                    { "Item1", 50 },
+                    { "Item2", 75 },
+                    { "Item3", 30 }
+                }
+            },
+            {
+                "Store C",
+                new Dictionary<string, int>
+                {
+                    { "Item1", 20 },
+                    { "Item2", 10 },
+                    { "Item3", 5 }
+                }
+            },
+            {
+                "Store D",
+                new Dictionary<string, int>
+                {
+                    { "Item1", 15 },
+                    { "Item2", 5 },
+                    { "Item3", 10 }
+                }
+            }
+        };
+
+        // Demand data
+        var demandData = new Dictionary<string, int>
+        {
+            { "Item1", 250 },
+            { "Item2", 200 },
+            { "Item3", 100 }
+        };
+
+        // Transportation costs
+        var transportCosts = new Dictionary<string, Dictionary<string, double>>
+        {
+            {
+                "Warehouse A",
+                new Dictionary<string, double>
+                {
+                    { "Warehouse B", 20 },
+                    { "Store C", 15 },
+                    { "Store D", 25 }
+                }
+            },
+            {
+                "Warehouse B",
+                new Dictionary<string, double>
+                {
+                    { "Warehouse A", 20 },
+                    { "Store C", 10 },
+                    { "Store D", 20 }
+                }
+            },
+            {
+                "Store C",
+                new Dictionary<string, double>
+                {
+                    { "Warehouse A", 15 },
+                    { "Warehouse B", 10 },
+                    { "Store D", 5 }
+                }
+            },
+            {
+                "Store D",
+                new Dictionary<string, double>
+                {
+                    { "Warehouse A", 25 },
+                    { "Warehouse B", 20 },
+                    { "Store C", 5 }
+                }
+            }
+        };
+
+        // Generate transfer orders
+        var transferOrders = await transferOrderPlugin.GenerateTransferOrders(
+            inventoryData,
+            demandData,
+            transportCosts
+        );
+
+        Console.WriteLine(transferOrders);
+    }
+
     private static async Task<ReadOnlyMemory<float>> GetEmbeddings(
         string text,
         ITextEmbeddingGenerationService textEmbeddingGenerationService
@@ -1002,5 +1167,80 @@ public static class AIProcessor
                     cancellationToken: cancellationToken
                 );
             });
+    }
+
+    public static async Task AzureAITools(AzureAIConfig azureAIConfig)
+    {
+        AzureOpenAIClient client =
+            new(new Uri(azureAIConfig.Endpoint), new ApiKeyCredential(azureAIConfig.ApiKey));
+
+        ChatClient chatClient = client.GetChatClient(azureAIConfig.ChatModelName);
+
+        List<OpenAI.Chat.ChatMessage> conversationMessages =
+        [
+            new SystemChatMessage(
+                @"You are an assistant that helps people answer questions using details of the weather in their location. (City and State).
+            You are limited to American cities only. Keep your responses clear and concise."
+            ),
+            new UserChatMessage("weather indy")
+        ];
+
+        ChatTool getWeatherForecastTool = ChatTool.CreateFunctionTool(
+            functionName: "GetForecast",
+            functionDescription: "Get the current and upcoming weather forecast for a given city and state",
+            functionParameters: BinaryData.FromString(
+                @"
+            {
+                ""type"": ""object"",
+                ""properties"": {
+                    ""city"": {
+                        ""type"": ""string"",
+                        ""description"": ""The city to get the weather for. eg: Miami or New York""
+                    },
+                    ""state"": {
+                        ""type"": ""string"",
+                        ""description"": ""The state the city is in. eg: FL or Florida or NY or New York""
+                    }
+                },
+                ""required"": [ ""city"", ""state"" ]
+            }
+            "
+            )
+        );
+
+        ChatCompletionOptions options = new() { Tools = { getWeatherForecastTool } };
+
+        OpenAI.Chat.ChatCompletion completion = await chatClient.CompleteChatAsync(
+            conversationMessages,
+            options
+        );
+
+        if (completion.ToolCalls.Count > 0)
+        {
+            // This is very important. If you don't add the completion to the conversation messages,
+            // OpenAI will not be able to know which tools calls were made and will reject the next prompt.
+            conversationMessages.Add(new AssistantChatMessage(completion));
+
+            foreach (var toolCall in completion.ToolCalls)
+            {
+                if (toolCall.FunctionName == "GetForecast")
+                {
+                    using JsonDocument argumentsDocument = JsonDocument.Parse(
+                        toolCall.FunctionArguments
+                    );
+
+                    conversationMessages.Add(
+                        new ToolChatMessage(toolCall.Id, "raining cats and dogs") //api call or whatever here
+                    );
+                }
+            }
+
+            OpenAI.Chat.ChatCompletion finalCompletion = chatClient.CompleteChat(
+                conversationMessages,
+                options
+            );
+
+            Console.WriteLine(finalCompletion.Content.First().Text);
+        }
     }
 }

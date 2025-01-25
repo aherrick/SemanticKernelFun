@@ -24,9 +24,14 @@ const string OptionImageDescription = "Image Description (Azure)";
 const string OptionChatToolRecipe = "Chat Tool Recipe (Azure)";
 const string OptionAgentChat = "Agent Chat (Azure)";
 const string OptionSpeechToText = "Speech To Text (Azure)";
-const string OptionMsftExtensionAIChat = "Microsoft Extension AI Chat (Azure)";
+const string OptionAzureAITools = "Azure AI Tools";
 const string OptionOllamaChat = "Ollama Chat (Local)";
 const string OptionQdrantAILocalRagChat = "Qdrant AI Local Rag Chat";
+const string OptionInventoryPlannerStepwise = "Inventory Planner Stepwise";
+const string OptionInventoryPlannerHandlebars = "Inventory Planner Handlebars";
+
+const string OptionTripPlanner = "Trip Planner";
+const string OptionTransferOrderPlanner = "Transfer Order Planner";
 
 const string OptionExit = "[red bold]Exit (Close the application)[/]"; // Change the color of the exit option to red and bold
 
@@ -49,9 +54,13 @@ while (true)
                 OptionChatToolRecipe,
                 OptionAgentChat,
                 OptionSpeechToText,
-                OptionMsftExtensionAIChat,
+                OptionAzureAITools,
                 OptionOllamaChat,
                 OptionQdrantAILocalRagChat,
+                OptionInventoryPlannerStepwise,
+                OptionInventoryPlannerHandlebars,
+                OptionTripPlanner,
+                OptionTransferOrderPlanner,
                 OptionExit
             )
     );
@@ -109,9 +118,9 @@ while (true)
             await AIProcessor.SpeachToTextChat(azureAIConfig);
             break;
 
-        case OptionMsftExtensionAIChat:
+        case OptionAzureAITools:
 
-            await AIProcessor.MsftExtensionAIChat(azureAIConfig);
+            await AIProcessor.AzureAITools(azureAIConfig);
             break;
 
         case OptionOllamaChat:
@@ -122,6 +131,22 @@ while (true)
         case OptionQdrantAILocalRagChat:
 
             await AIProcessor.QdrantAILocalRag(qdrantClientConfig, ollamaAIConfig);
+            break;
+
+        case OptionInventoryPlannerStepwise:
+            await AIProcessor.InventoryPlanner(azureAIConfig, PlannerType.Stepwise);
+            break;
+
+        case OptionInventoryPlannerHandlebars:
+            await AIProcessor.InventoryPlanner(azureAIConfig, PlannerType.Handlebars);
+            break;
+
+        case OptionTripPlanner:
+            await AIProcessor.TripPlanner(azureAIConfig);
+            break;
+
+        case OptionTransferOrderPlanner:
+            await AIProcessor.TransferOrderPlanner(azureAIConfig);
             break;
 
         case OptionExit:
