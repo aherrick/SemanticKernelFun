@@ -668,7 +668,6 @@ public static class AIProcessor
             Instructions =
                 "Check if the StoryTeller told a story and if so Repeat the last story but replace the word 'Dragon' and all derivatives with the word '<CENSORED>'!. Do not write your own stories.",
         };
-#pragma warning restore SKEXP0101 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
         var groupChat = new AgentGroupChat(storyTeller, reviewer, censor)
         {
@@ -1009,14 +1008,15 @@ public static class AIProcessor
         IChatCompletionService chatCompletionService =
             KernelChat.GetRequiredService<IChatCompletionService>();
 
-        ChatHistory chatMessages = new ChatHistory(
-            """
+        ChatHistory chatMessages =
+            new(
+                """
 You are a friendly assistant who likes to follow the rules. You will complete required steps
 and request approval before taking any consequential actions. If the user doesn't provide
 enough information for you to complete a task, you will keep asking questions until you have
 enough information to complete the task.
 """
-        );
+            );
 
         while (true)
         {
@@ -1235,7 +1235,7 @@ enough information to complete the task.
                 }
             }
 
-            OpenAI.Chat.ChatCompletion finalCompletion = chatClient.CompleteChat(
+            OpenAI.Chat.ChatCompletion finalCompletion = await chatClient.CompleteChatAsync(
                 conversationMessages,
                 options
             );
