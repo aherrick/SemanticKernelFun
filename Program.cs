@@ -23,6 +23,8 @@ const string OptionLocalChat = "Chat Basic (Local)";
 const string OptionImageDescription = "Image Description (Azure)";
 const string OptionChatToolRecipe = "Chat Tool Recipe (Azure)";
 const string OptionAgentChat = "Agent Chat (Azure)";
+const string OptionAgentChatRapBattle = "Agent Chat Rap Battle (Azure)";
+
 const string OptionSpeechToText = "Speech To Text (Azure)";
 const string OptionAzureAITools = "Azure AI Tools";
 const string OptionOllamaChat = "Ollama Chat (Local)";
@@ -53,6 +55,7 @@ while (true)
                 OptionImageDescription,
                 OptionChatToolRecipe,
                 OptionAgentChat,
+                OptionAgentChatRapBattle,
                 OptionSpeechToText,
                 OptionAzureAITools,
                 OptionOllamaChat,
@@ -111,6 +114,10 @@ while (true)
         case OptionAgentChat:
 
             await AIProcessor.AgentChat(azureAIConfig);
+            break;
+
+        case OptionAgentChatRapBattle:
+            await AIProcessor.AgentChatRapBattle(azureAIConfig);
             break;
 
         case OptionSpeechToText:
