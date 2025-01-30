@@ -8,7 +8,6 @@ using Azure.AI.OpenAI.Chat;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.VectorData;
-using Microsoft.Identity.Client;
 using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
@@ -28,7 +27,7 @@ using Microsoft.SemanticKernel.PromptTemplates.Handlebars;
 using Microsoft.SemanticKernel.Text;
 using MoreRAGFun.Models;
 using NAudio.Wave;
-using OllamaSharp;
+using OpenAI;
 using OpenAI.Chat;
 using Qdrant.Client;
 using Qdrant.Client.Grpc;
@@ -753,26 +752,29 @@ public static class AIProcessor
             "You are a rapper and you rap in the stlye of Jay-Z. You are participating to a rap battle. You will be given a topic and you will need to create the lyrics and rap about it.";
 
 #pragma warning disable SKEXP0110 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        ChatCompletionAgent rapMCAgent = new ChatCompletionAgent
-        {
-            Name = rapMCName,
-            Instructions = rapMCInstructions,
-            Kernel = KernelChat
-        };
+        ChatCompletionAgent rapMCAgent =
+            new()
+            {
+                Name = rapMCName,
+                Instructions = rapMCInstructions,
+                Kernel = KernelChat
+            };
 
-        ChatCompletionAgent eminemAgent = new ChatCompletionAgent
-        {
-            Name = eminemName,
-            Instructions = eminemInstructions,
-            Kernel = KernelChat
-        };
+        ChatCompletionAgent eminemAgent =
+            new()
+            {
+                Name = eminemName,
+                Instructions = eminemInstructions,
+                Kernel = KernelChat
+            };
 
-        ChatCompletionAgent jayZAgent = new ChatCompletionAgent
-        {
-            Name = jayZName,
-            Instructions = jayZInstructions,
-            Kernel = KernelChat
-        };
+        ChatCompletionAgent jayZAgent =
+            new()
+            {
+                Name = jayZName,
+                Instructions = jayZInstructions,
+                Kernel = KernelChat
+            };
 
         KernelFunction terminateFunction = KernelFunctionFactory.CreateFromPrompt(
             $$$"""
@@ -1286,6 +1288,303 @@ enough information to complete the task.
                     cancellationToken: cancellationToken
                 );
             });
+    }
+
+    //    public static async Task Yo()
+    //    {
+    //#pragma warning disable SKEXP0080
+
+    //        using System.Text.Json.Serialization;
+    //        using Microsoft.SemanticKernel;
+
+    //        #region Process Definition
+
+    //        var process = new ProcessBuilder("CreditCheck");
+    //        var getCustomerStep = process.AddStepFromType<GetCustomerStep>();
+    //        var creditCheckStep = process.AddStepFromType<CreditCheckStep>();
+    //        var notificationStep = process.AddStepFromType<NotificationStep>();
+    //        var stopProcessStep = process.AddStepFromType<StopProcessStep>();
+
+    //        #endregion Process Definition
+
+    //        #region Organizing the Process
+
+    //        process
+    //            .OnInputEvent(CreditEvents.StartProcess)
+    //            .SendEventTo(
+    //                new ProcessFunctionTargetBuilder(getCustomerStep, GetCustomerStep.Functions.GetCustomer)
+    //            );
+
+    //        getCustomerStep
+    //            .OnEvent(CreditEvents.GetCustomer)
+    //            .SendEventTo(
+    //                new ProcessFunctionTargetBuilder(
+    //                    creditCheckStep,
+    //                    CreditCheckStep.Functions.CheckCredit,
+    //                    parameterName: "customer"
+    //                )
+    //            );
+
+    //        creditCheckStep
+    //            .OnEvent(CreditEvents.CreditCheckSuccess)
+    //            .SendEventTo(
+    //                new ProcessFunctionTargetBuilder(
+    //                    notificationStep,
+    //                    NotificationStep.Functions.SendApproval,
+    //                    parameterName: "result"
+    //                )
+    //            );
+
+    //        creditCheckStep
+    //            .OnEvent(CreditEvents.CreditCheckFail)
+    //            .SendEventTo(
+    //                new ProcessFunctionTargetBuilder(
+    //                    notificationStep,
+    //                    NotificationStep.Functions.SendRejection,
+    //                    parameterName: "message"
+    //                )
+    //            );
+
+    //        notificationStep
+    //            .OnEvent(CreditEvents.NotificationSent)
+    //            .SendEventTo(
+    //                new ProcessFunctionTargetBuilder(stopProcessStep, StopProcessStep.Functions.StopProcess)
+    //            );
+
+    //        stopProcessStep.OnEvent(CreditEvents.StopProcess).StopProcess();
+
+    //        #endregion Organizing the Process
+
+    //        var kernelProcess = process.Build();
+    //        Kernel kernel = Kernel
+    //            .CreateBuilder()
+    //            .AddAzureOpenAIChatCompletion(
+    //                deploymentName: "gpt-4o",
+    //                apiKey: "0067bfc370154a67931549a795836a02",
+    //                endpoint: "https://ajh-ai.openai.azure.com/"
+    //            )
+    //            .Build();
+
+    //        while (true)
+    //        {
+    //            Console.WriteLine("Please enter customer ID:");
+    //            var id = int.Parse(Console.ReadLine()!);
+    //            using var runningProcess = await kernelProcess.StartAsync(
+    //                kernel,
+    //                new KernelProcessEvent() { Id = CreditEvents.StartProcess, Data = id }
+    //            );
+    //        }
+
+    //#region Define Events
+
+    //public static class CreditEvents
+    //    {
+    //        public static readonly string StartProcess = nameof(StartProcess);
+    //        public static readonly string GetCustomer = nameof(GetCustomer);
+    //        public static readonly string CreditCheckSuccess = nameof(CreditCheckSuccess);
+    //        public static readonly string CreditCheckFail = nameof(CreditCheckFail);
+    //        public static readonly string NotificationSent = nameof(NotificationSent);
+    //        public static readonly string StopProcess = nameof(StopProcess);
+    //    }
+
+    //    #endregion Define Events
+
+    //    #region Steps
+
+    //    public class GetCustomerStep : KernelProcessStep
+    //    {
+    //        public static class Functions
+    //        {
+    //            public const string GetCustomer = nameof(GetCustomer);
+    //        }
+
+    //        [KernelFunction(Functions.GetCustomer)]
+    //        public async Task GetCustomerAsync(KernelProcessStepContext context, int id)
+    //        {
+    //            Console.WriteLine($"[Query Customer] Starting, id={id}");
+    //            var customers = new List<CustomerInfo>()
+    //        {
+    //            new()
+    //            {
+    //                Id = 1,
+    //                Name = "John Doe",
+    //                Income = 75000,
+    //                CreditScore = 720
+    //            },
+    //            new()
+    //            {
+    //                Id = 2,
+    //                Name = "Jane Smith",
+    //                Income = 45000,
+    //                CreditScore = 580
+    //            },
+    //            new()
+    //            {
+    //                Id = 3,
+    //                Name = "Bob Johnson",
+    //                Income = 95000,
+    //                CreditScore = 800
+    //            }
+    //        };
+
+    //            var customer = customers.SingleOrDefault(s => s.Id == id);
+    //            Console.WriteLine($"[Query Customer] Found: {customer}");
+    //            await context.EmitEventAsync(
+    //                new()
+    //                {
+    //                    Id = CreditEvents.GetCustomer,
+    //                    Data = customer,
+    //                    Visibility = KernelProcessEventVisibility.Public
+    //                }
+    //            );
+    //        }
+    //    }
+
+    //    public class CreditCheckStep : KernelProcessStep
+    //    {
+    //        public static class Functions
+    //        {
+    //            public const string CheckCredit = nameof(CheckCredit);
+    //        }
+
+    //        [KernelFunction(Functions.CheckCredit)]
+    //        public async Task CheckCreditAsync(KernelProcessStepContext context, CustomerInfo customer)
+    //        {
+    //            Console.WriteLine($"[Credit Check] Starting for {customer.Name}");
+
+    //            var isApproved = customer.CreditScore >= 650 && customer.Income >= 50000;
+    //            var result = new CreditCheckResult
+    //            {
+    //                IsApproved = isApproved,
+    //                CustomerName = customer.Name,
+    //                CreditLimit = isApproved ? customer.Income * 0.3m : 0
+    //            };
+
+    //            if (isApproved)
+    //            {
+    //                Console.WriteLine("[Credit Check] Approved");
+    //                await context.EmitEventAsync(
+    //                    new()
+    //                    {
+    //                        Id = CreditEvents.CreditCheckSuccess,
+    //                        Data = result,
+    //                        Visibility = KernelProcessEventVisibility.Public
+    //                    }
+    //                );
+    //            }
+    //            else
+    //            {
+    //                Console.WriteLine("[Credit Check] Rejected");
+    //                await context.EmitEventAsync(
+    //                    new()
+    //                    {
+    //                        Id = CreditEvents.CreditCheckFail,
+    //                        Data =
+    //                            "Credit application rejected due to insufficient credit score or income.",
+    //                        Visibility = KernelProcessEventVisibility.Public
+    //                    }
+    //                );
+    //            }
+    //        }
+    //    }
+
+    //    public class NotificationStep : KernelProcessStep
+    //    {
+    //        public static class Functions
+    //        {
+    //            public const string SendApproval = nameof(SendApproval);
+    //            public const string SendRejection = nameof(SendRejection);
+    //        }
+
+    //        [KernelFunction(Functions.SendApproval)]
+    //        public async Task SendApprovalAsync(KernelProcessStepContext context, CreditCheckResult result)
+    //        {
+    //            Console.WriteLine("======== Approval Notification ========");
+    //            Console.WriteLine($"Congratulations {result.CustomerName}!");
+    //            Console.WriteLine(
+    //                $"Your credit application has been approved with a limit of ${result.CreditLimit:N2}"
+    //            );
+    //            Console.WriteLine("====================================");
+
+    //            await context.EmitEventAsync(new() { Id = CreditEvents.NotificationSent });
+    //        }
+
+    //        [KernelFunction(Functions.SendRejection)]
+    //        public async Task SendRejectionAsync(KernelProcessStepContext context, string message)
+    //        {
+    //            Console.WriteLine("======== Rejection Notification ========");
+    //            Console.WriteLine(message);
+    //            Console.WriteLine("=====================================");
+
+    //            await context.EmitEventAsync(new() { Id = CreditEvents.NotificationSent });
+    //        }
+    //    }
+
+    //    public class StopProcessStep : KernelProcessStep
+    //    {
+    //        public static class Functions
+    //        {
+    //            public const string StopProcess = nameof(StopProcess);
+    //        }
+
+    //        [KernelFunction(Functions.StopProcess)]
+    //        public async Task StopProcessAsync(KernelProcessStepContext context)
+    //        {
+    //            Console.WriteLine("Process completed.");
+    //            await Task.CompletedTask;
+    //        }
+    //    }
+
+    //    #endregion Steps
+
+    //    #region Models
+
+    //    public class CustomerInfo
+    //    {
+    //        public int Id { get; set; }
+    //        public string Name { get; set; } = string.Empty;
+    //        public decimal Income { get; set; }
+    //        public int CreditScore { get; set; }
+
+    //        public override string ToString() =>
+    //            $"Customer: {Name}, Income: ${Income:N2}, Credit Score: {CreditScore}";
+    //    }
+
+    //    public class CreditCheckResult
+    //    {
+    //        public bool IsApproved { get; set; }
+    //        public string CustomerName { get; set; } = string.Empty;
+    //        public decimal CreditLimit { get; set; }
+    //    }
+
+    //#endregion Models
+    //    }
+
+    public static async Task GithubInferenceChat(GithubAIConfig githubAIConfig)
+    {
+        var openAIOptions = new OpenAIClientOptions()
+        {
+            Endpoint = new Uri("https://models.inference.ai.azure.com")
+        };
+
+        var client = new ChatClient(
+            "gpt-4o",
+            new ApiKeyCredential(githubAIConfig.Token),
+            openAIOptions
+        );
+
+        List<OpenAI.Chat.ChatMessage> messages =
+        [
+            new UserChatMessage("Can you explain the basics of machine learning?"),
+        ];
+
+        await foreach (var item in client.CompleteChatStreamingAsync(messages))
+        {
+            foreach (ChatMessageContentPart contentPart in item.ContentUpdate)
+            {
+                Console.Write(contentPart.Text);
+            }
+        }
     }
 
     public static async Task AzureAITools(AzureAIConfig azureAIConfig)

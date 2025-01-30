@@ -11,6 +11,7 @@ var azureSearchConfig = config.GetSection(nameof(AzureSearchConfig)).Get<AzureSe
 var localAIConfig = config.GetSection(nameof(LocalAIConfig)).Get<LocalAIConfig>();
 var ollamaAIConfig = config.GetSection(nameof(OllamaAIConfig)).Get<OllamaAIConfig>();
 var qdrantClientConfig = config.GetSection(nameof(QdrantClientConfig)).Get<QdrantClientConfig>();
+var githubAIConfig = config.GetSection(nameof(GithubAIConfig)).Get<GithubAIConfig>();
 
 // Define constants for menu options
 const string OptionAzureRAG = "RAG Basic (Azure)";
@@ -31,6 +32,7 @@ const string OptionOllamaChat = "Ollama Chat (Local)";
 const string OptionQdrantAILocalRagChat = "Qdrant AI Local Rag Chat";
 const string OptionInventoryPlannerStepwise = "Inventory Planner Stepwise";
 const string OptionInventoryPlannerHandlebars = "Inventory Planner Handlebars";
+const string OptionGithubInferenceChat = "Github Inteference Chat";
 
 const string OptionTripPlanner = "Trip Planner";
 const string OptionTransferOrderPlanner = "Transfer Order Planner";
@@ -64,6 +66,7 @@ while (true)
                 OptionInventoryPlannerHandlebars,
                 OptionTripPlanner,
                 OptionTransferOrderPlanner,
+                OptionGithubInferenceChat,
                 OptionExit
             )
     );
@@ -154,6 +157,10 @@ while (true)
 
         case OptionTransferOrderPlanner:
             await AIProcessor.TransferOrderPlanner(azureAIConfig);
+            break;
+
+        case OptionGithubInferenceChat:
+            await AIProcessor.GithubInferenceChat(githubAIConfig);
             break;
 
         case OptionExit:

@@ -33,6 +33,11 @@ public class LocalAIConfig
     public string BgeModelVocabPath { get; set; }
 }
 
+public class GithubAIConfig
+{
+    public string Token { get; set; }
+}
+
 public class QdrantClientConfig
 {
     public string Endpoint { get; set; }

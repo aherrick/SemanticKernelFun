@@ -22,7 +22,7 @@ public class ElectricCarPlugin // <------------ Car plugin. Knows about states a
             {
                 isCarCharging = false;
                 Console.WriteLine("\rBattery is full.");
-                source.Cancel();
+                await source.CancelAsync();
                 return;
             }
             //Console.WriteLine($"Charging {batteryLevel}%");
@@ -54,7 +54,7 @@ public class ElectricCarPlugin // <------------ Car plugin. Knows about states a
             return "Battery is already full.";
         }
 
-        Task.Run(AddJuice);
+        _ = Task.Run(AddJuice);
 
         isCarCharging = true;
         return "Charging started.";
