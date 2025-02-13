@@ -33,6 +33,7 @@ const string OptionQdrantAILocalRagChat = "Qdrant AI Local Rag Chat";
 const string OptionInventoryPlannerStepwise = "Inventory Planner Stepwise";
 const string OptionInventoryPlannerHandlebars = "Inventory Planner Handlebars";
 const string OptionGithubInferenceChat = "Github Inteference Chat";
+const string OptionOllamaMemoryLocal = "Ollama Memory (Local)";
 
 const string OptionTripPlanner = "Trip Planner";
 const string OptionTransferOrderPlanner = "Transfer Order Planner";
@@ -67,6 +68,7 @@ while (true)
                 OptionTripPlanner,
                 OptionTransferOrderPlanner,
                 OptionGithubInferenceChat,
+                OptionOllamaMemoryLocal,
                 OptionExit
             )
     );
@@ -161,6 +163,10 @@ while (true)
 
         case OptionGithubInferenceChat:
             await AIProcessor.GithubInferenceChat(githubAIConfig);
+            break;
+
+        case OptionOllamaMemoryLocal:
+            await AIProcessor.OllamaMemory(ollamaAIConfig);
             break;
 
         case OptionExit:

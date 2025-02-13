@@ -9,6 +9,11 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.VectorData;
 using Microsoft.KernelMemory;
+using Microsoft.KernelMemory.AI;
+using Microsoft.KernelMemory.AI.Ollama;
+using Microsoft.KernelMemory.DocumentStorage.DevTools;
+using Microsoft.KernelMemory.FileSystem.DevTools;
+using Microsoft.KernelMemory.MemoryStorage.DevTools;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Agents.Chat;
@@ -98,13 +103,12 @@ public static class AIProcessor
         Question: {{$input}}
         Answer the question using the memory content: {{Recall}}";
 
-            OpenAIPromptExecutionSettings openAIPromptExecutionSettings =
-                new()
-                {
-                    ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions,
-                    Temperature = 1,
-                    MaxTokens = 200
-                };
+            OpenAIPromptExecutionSettings openAIPromptExecutionSettings = new()
+            {
+                ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions,
+                Temperature = 1,
+                MaxTokens = 200,
+            };
 
             var response = kernel.InvokePromptStreamingAsync(
                 promptTemplate: prompt,
@@ -236,7 +240,7 @@ public static class AIProcessor
                 { ".jpg", "image/jpeg" },
                 { ".jpeg", "image/jpeg" },
                 { ".png", "image/png" },
-                { ".gif", "image/gif" }
+                { ".gif", "image/gif" },
             };
 
             var chatHistory = new ChatHistory();
@@ -246,7 +250,7 @@ public static class AIProcessor
                     new Microsoft.SemanticKernel.ImageContent(
                         imageData,
                         mimeTypes[Path.GetExtension(file)]
-                    )
+                    ),
                 ]
             );
 
@@ -320,7 +324,7 @@ public static class AIProcessor
         string[] requiredFields =
         [
             "AltText",
-            "Title" /*, "Subject"*/
+            "Title", /*, "Subject"*/
         ];
         ChatTool tool = ChatTool.CreateFunctionTool(
             "describe_recipe",
@@ -334,9 +338,9 @@ public static class AIProcessor
                         AltText = new
                         {
                             Type = "string",
-                            Description = "Very short description of what is in the recipe, to be included as alt text for screen readers."
+                            Description = "Very short description of what is in the recipe, to be included as alt text for screen readers.",
                         },
-                        Title = new { Type = "string", Description = "Short title of the recipe" }
+                        Title = new { Type = "string", Description = "Short title of the recipe" },
                         //  Subject = new
                         //  {
                         //      Type = "string",
@@ -345,7 +349,7 @@ public static class AIProcessor
                         //"say 'student work'. For anything else, say 'other'."
                         //  }
                     },
-                    Required = requiredFields
+                    Required = requiredFields,
                 },
                 new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
             )
@@ -417,14 +421,14 @@ public static class AIProcessor
             //    photoUri,
             //    ImageChatMessageContentPartDetail.Low
             //)
-            )
+            ),
         };
 
         var options = new ChatCompletionOptions
         {
             Temperature = 0,
             // EndUserId = identifier,
-            Tools = { tool }
+            Tools = { tool },
         };
 
         var response = await chatClient.CompleteChatAsync(messages, options);
@@ -440,7 +444,7 @@ public static class AIProcessor
 
         var promptExecutionSettings = new PromptExecutionSettings()
         {
-            FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
+            FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(),
         };
 
         var chatService = kernel.GetRequiredService<IChatCompletionService>();
@@ -544,7 +548,7 @@ public static class AIProcessor
                                 TextEmbedding = await GetEmbeddings(
                                     paragraph,
                                     textEmbeddingGenerationService
-                                )
+                                ),
                             }
                         );
                     }
@@ -612,7 +616,7 @@ public static class AIProcessor
 
                 Question: {{question}}
                 """,
-                arguments: new KernelArguments() { { "question", question }, },
+                arguments: new KernelArguments() { { "question", question } },
                 templateFormat: "handlebars",
                 promptTemplateFactory: new HandlebarsPromptTemplateFactory()
             );
@@ -674,8 +678,8 @@ public static class AIProcessor
         {
             ExecutionSettings = new AgentGroupChatSettings
             {
-                SelectionStrategy = new SequentialSelectionStrategy { InitialAgent = storyTeller, },
-                TerminationStrategy = new RegexTerminationStrategy("NO MORE STORIES")
+                SelectionStrategy = new SequentialSelectionStrategy { InitialAgent = storyTeller },
+                TerminationStrategy = new RegexTerminationStrategy("NO MORE STORIES"),
             },
         };
 
@@ -752,29 +756,26 @@ public static class AIProcessor
             "You are a rapper and you rap in the stlye of Jay-Z. You are participating to a rap battle. You will be given a topic and you will need to create the lyrics and rap about it.";
 
 #pragma warning disable SKEXP0110 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        ChatCompletionAgent rapMCAgent =
-            new()
-            {
-                Name = rapMCName,
-                Instructions = rapMCInstructions,
-                Kernel = KernelChat
-            };
+        ChatCompletionAgent rapMCAgent = new()
+        {
+            Name = rapMCName,
+            Instructions = rapMCInstructions,
+            Kernel = KernelChat,
+        };
 
-        ChatCompletionAgent eminemAgent =
-            new()
-            {
-                Name = eminemName,
-                Instructions = eminemInstructions,
-                Kernel = KernelChat
-            };
+        ChatCompletionAgent eminemAgent = new()
+        {
+            Name = eminemName,
+            Instructions = eminemInstructions,
+            Kernel = KernelChat,
+        };
 
-        ChatCompletionAgent jayZAgent =
-            new()
-            {
-                Name = jayZName,
-                Instructions = jayZInstructions,
-                Kernel = KernelChat
-            };
+        ChatCompletionAgent jayZAgent = new()
+        {
+            Name = jayZName,
+            Instructions = jayZInstructions,
+            Kernel = KernelChat,
+        };
 
         KernelFunction terminateFunction = KernelFunctionFactory.CreateFromPrompt(
             $$$"""
@@ -823,7 +824,7 @@ public static class AIProcessor
                             .GetValue<string>()
                             ?.Contains("yes", StringComparison.OrdinalIgnoreCase) ?? false,
                     HistoryVariableName = "history",
-                    MaximumIterations = 10
+                    MaximumIterations = 10,
                 },
                 SelectionStrategy = new KernelFunctionSelectionStrategy(
                     selectionFunction,
@@ -831,9 +832,9 @@ public static class AIProcessor
                 )
                 {
                     AgentsVariableName = "agents",
-                    HistoryVariableName = "history"
-                }
-            }
+                    HistoryVariableName = "history",
+                },
+            },
         };
 
         Console.WriteLine("Enter your topic to rap about!");
@@ -872,8 +873,8 @@ public static class AIProcessor
             Kernel = kernel,
             Instructions = "You are nice AI",
             Arguments = new KernelArguments(
-                new AzureOpenAIPromptExecutionSettings { Temperature = 1, }
-            )
+                new AzureOpenAIPromptExecutionSettings { Temperature = 1 }
+            ),
         };
 
         Console.WriteLine("Press any key to start recording mode...");
@@ -944,14 +945,21 @@ public static class AIProcessor
         OllamaAIConfig ollamaAIConfig
     )
     {
-        QdrantClient qClient =
-            new(host: qdrantClientConfig.Endpoint, https: true, apiKey: qdrantClientConfig.ApiKey);
+        QdrantClient qClient = new(
+            host: qdrantClientConfig.Endpoint,
+            https: true,
+            apiKey: qdrantClientConfig.ApiKey
+        );
 
-        OllamaEmbeddingGenerator textEmbeddingGenerator =
-            new(new Uri(ollamaAIConfig.Endpoint), ollamaAIConfig.TextEmbeddingModelName);
+        OllamaEmbeddingGenerator textEmbeddingGenerator = new(
+            new Uri(ollamaAIConfig.Endpoint),
+            ollamaAIConfig.TextEmbeddingModelName
+        );
 
-        OllamaChatClient chatClient =
-            new(new Uri(ollamaAIConfig.Endpoint), ollamaAIConfig.ChatModelName);
+        OllamaChatClient chatClient = new(
+            new Uri(ollamaAIConfig.Endpoint),
+            ollamaAIConfig.ChatModelName
+        );
 
         Console.WriteLine($"Loading data...");
         var zeldaRecords = new List<ZeldaRecord>();
@@ -995,7 +1003,7 @@ public static class AIProcessor
                 {
                     Id = new PointId((uint)(i + 1)), // Use loop index + 1 as the unique ID
                     Vectors = item.Embedding,
-                    Payload = { ["name"] = item.Name, ["description"] = item.Description }
+                    Payload = { ["name"] = item.Name, ["description"] = item.Description },
                 }
             );
         }
@@ -1129,23 +1137,24 @@ public static class AIProcessor
         IChatCompletionService chatCompletionService =
             KernelChat.GetRequiredService<IChatCompletionService>();
 
-        ChatHistory chatMessages =
-            new(
-                """
+        ChatHistory chatMessages = new(
+            """
 You are a friendly assistant who likes to follow the rules. You will complete required steps
 and request approval before taking any consequential actions. If the user doesn't provide
 enough information for you to complete a task, you will keep asking questions until you have
 enough information to complete the task.
 """
-            );
+        );
 
         while (true)
         {
             Console.Write("User > ");
             chatMessages.AddUserMessage(Console.ReadLine()!);
 
-            OpenAIPromptExecutionSettings settings =
-                new() { ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions };
+            OpenAIPromptExecutionSettings settings = new()
+            {
+                ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions,
+            };
             var result = chatCompletionService.GetStreamingChatMessageContentsAsync(
                 chatMessages,
                 executionSettings: settings,
@@ -1183,7 +1192,7 @@ enough information to complete the task.
                 {
                     { "Item1", 200 },
                     { "Item2", 150 },
-                    { "Item3", 50 }
+                    { "Item3", 50 },
                 }
             },
             {
@@ -1192,7 +1201,7 @@ enough information to complete the task.
                 {
                     { "Item1", 50 },
                     { "Item2", 75 },
-                    { "Item3", 30 }
+                    { "Item3", 30 },
                 }
             },
             {
@@ -1201,7 +1210,7 @@ enough information to complete the task.
                 {
                     { "Item1", 20 },
                     { "Item2", 10 },
-                    { "Item3", 5 }
+                    { "Item3", 5 },
                 }
             },
             {
@@ -1210,9 +1219,9 @@ enough information to complete the task.
                 {
                     { "Item1", 15 },
                     { "Item2", 5 },
-                    { "Item3", 10 }
+                    { "Item3", 10 },
                 }
-            }
+            },
         };
 
         // Demand data
@@ -1220,7 +1229,7 @@ enough information to complete the task.
         {
             { "Item1", 250 },
             { "Item2", 200 },
-            { "Item3", 100 }
+            { "Item3", 100 },
         };
 
         // Transportation costs
@@ -1232,7 +1241,7 @@ enough information to complete the task.
                 {
                     { "Warehouse B", 20 },
                     { "Store C", 15 },
-                    { "Store D", 25 }
+                    { "Store D", 25 },
                 }
             },
             {
@@ -1241,7 +1250,7 @@ enough information to complete the task.
                 {
                     { "Warehouse A", 20 },
                     { "Store C", 10 },
-                    { "Store D", 20 }
+                    { "Store D", 20 },
                 }
             },
             {
@@ -1250,7 +1259,7 @@ enough information to complete the task.
                 {
                     { "Warehouse A", 15 },
                     { "Warehouse B", 10 },
-                    { "Store D", 5 }
+                    { "Store D", 5 },
                 }
             },
             {
@@ -1259,9 +1268,9 @@ enough information to complete the task.
                 {
                     { "Warehouse A", 25 },
                     { "Warehouse B", 20 },
-                    { "Store C", 5 }
+                    { "Store C", 5 },
                 }
-            }
+            },
         };
 
         // Generate transfer orders
@@ -1290,281 +1299,66 @@ enough information to complete the task.
             });
     }
 
-    //    public static async Task Yo()
-    //    {
-    //#pragma warning disable SKEXP0080
+    public static async Task OllamaMemory(OllamaAIConfig ollamaAIConfig)
+    {
+        var config = new OllamaConfig
+        {
+            Endpoint = ollamaAIConfig.Endpoint,
+            TextModel = new OllamaModelConfig(ollamaAIConfig.ChatModelName),
+            EmbeddingModel = new OllamaModelConfig(ollamaAIConfig.TextEmbeddingModelName),
+        };
 
-    //        using System.Text.Json.Serialization;
-    //        using Microsoft.SemanticKernel;
+        var memory = new KernelMemoryBuilder()
+            .WithOllamaTextGeneration(config, new GPT4oTokenizer())
+            .WithOllamaTextEmbeddingGeneration(config, new GPT4oTokenizer())
+            .WithSimpleFileStorage(
+                new SimpleFileStorageConfig { StorageType = FileSystemTypes.Disk }
+            ) // todo?
+            .WithSimpleVectorDb(new SimpleVectorDbConfig { StorageType = FileSystemTypes.Disk }) // todo?
+            .Build<MemoryServerless>();
 
-    //        #region Process Definition
+        var facts = new[]
+        {
+            (
+                "timing1",
+                "Clinic opens in morning from 10AM to 1PM, Mondays, Tuesdays, Wednesdays, Thursdays, Fridays and Saturdays"
+            ),
+            (
+                "timing2",
+                "Clinic opens in evening from 6PM to 8PM, Mondays, Tuesdays and Wednesdays only, for the rest of the week clinic is off in evening"
+            ),
+            ("timing3", "Clinic is off on Sunday"),
+        };
 
-    //        var process = new ProcessBuilder("CreditCheck");
-    //        var getCustomerStep = process.AddStepFromType<GetCustomerStep>();
-    //        var creditCheckStep = process.AddStepFromType<CreditCheckStep>();
-    //        var notificationStep = process.AddStepFromType<NotificationStep>();
-    //        var stopProcessStep = process.AddStepFromType<StopProcessStep>();
+        foreach (var fact in facts)
+        {
+            if (!await memory.IsDocumentReadyAsync(fact.Item1, index: "clinic"))
+                try
+                {
+                    await memory.ImportTextAsync(
+                        fact.Item2,
+                        documentId: fact.Item1,
+                        index: "clinic"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed for {fact.Item1} with {ex.Message}");
+                }
+        }
 
-    //        #endregion Process Definition
-
-    //        #region Organizing the Process
-
-    //        process
-    //            .OnInputEvent(CreditEvents.StartProcess)
-    //            .SendEventTo(
-    //                new ProcessFunctionTargetBuilder(getCustomerStep, GetCustomerStep.Functions.GetCustomer)
-    //            );
-
-    //        getCustomerStep
-    //            .OnEvent(CreditEvents.GetCustomer)
-    //            .SendEventTo(
-    //                new ProcessFunctionTargetBuilder(
-    //                    creditCheckStep,
-    //                    CreditCheckStep.Functions.CheckCredit,
-    //                    parameterName: "customer"
-    //                )
-    //            );
-
-    //        creditCheckStep
-    //            .OnEvent(CreditEvents.CreditCheckSuccess)
-    //            .SendEventTo(
-    //                new ProcessFunctionTargetBuilder(
-    //                    notificationStep,
-    //                    NotificationStep.Functions.SendApproval,
-    //                    parameterName: "result"
-    //                )
-    //            );
-
-    //        creditCheckStep
-    //            .OnEvent(CreditEvents.CreditCheckFail)
-    //            .SendEventTo(
-    //                new ProcessFunctionTargetBuilder(
-    //                    notificationStep,
-    //                    NotificationStep.Functions.SendRejection,
-    //                    parameterName: "message"
-    //                )
-    //            );
-
-    //        notificationStep
-    //            .OnEvent(CreditEvents.NotificationSent)
-    //            .SendEventTo(
-    //                new ProcessFunctionTargetBuilder(stopProcessStep, StopProcessStep.Functions.StopProcess)
-    //            );
-
-    //        stopProcessStep.OnEvent(CreditEvents.StopProcess).StopProcess();
-
-    //        #endregion Organizing the Process
-
-    //        var kernelProcess = process.Build();
-    //        Kernel kernel = Kernel
-    //            .CreateBuilder()
-    //            .AddAzureOpenAIChatCompletion(
-    //                deploymentName: "gpt-4o",
-    //                apiKey: "0067bfc370154a67931549a795836a02",
-    //                endpoint: "https://ajh-ai.openai.azure.com/"
-    //            )
-    //            .Build();
-
-    //        while (true)
-    //        {
-    //            Console.WriteLine("Please enter customer ID:");
-    //            var id = int.Parse(Console.ReadLine()!);
-    //            using var runningProcess = await kernelProcess.StartAsync(
-    //                kernel,
-    //                new KernelProcessEvent() { Id = CreditEvents.StartProcess, Data = id }
-    //            );
-    //        }
-
-    //#region Define Events
-
-    //public static class CreditEvents
-    //    {
-    //        public static readonly string StartProcess = nameof(StartProcess);
-    //        public static readonly string GetCustomer = nameof(GetCustomer);
-    //        public static readonly string CreditCheckSuccess = nameof(CreditCheckSuccess);
-    //        public static readonly string CreditCheckFail = nameof(CreditCheckFail);
-    //        public static readonly string NotificationSent = nameof(NotificationSent);
-    //        public static readonly string StopProcess = nameof(StopProcess);
-    //    }
-
-    //    #endregion Define Events
-
-    //    #region Steps
-
-    //    public class GetCustomerStep : KernelProcessStep
-    //    {
-    //        public static class Functions
-    //        {
-    //            public const string GetCustomer = nameof(GetCustomer);
-    //        }
-
-    //        [KernelFunction(Functions.GetCustomer)]
-    //        public async Task GetCustomerAsync(KernelProcessStepContext context, int id)
-    //        {
-    //            Console.WriteLine($"[Query Customer] Starting, id={id}");
-    //            var customers = new List<CustomerInfo>()
-    //        {
-    //            new()
-    //            {
-    //                Id = 1,
-    //                Name = "John Doe",
-    //                Income = 75000,
-    //                CreditScore = 720
-    //            },
-    //            new()
-    //            {
-    //                Id = 2,
-    //                Name = "Jane Smith",
-    //                Income = 45000,
-    //                CreditScore = 580
-    //            },
-    //            new()
-    //            {
-    //                Id = 3,
-    //                Name = "Bob Johnson",
-    //                Income = 95000,
-    //                CreditScore = 800
-    //            }
-    //        };
-
-    //            var customer = customers.SingleOrDefault(s => s.Id == id);
-    //            Console.WriteLine($"[Query Customer] Found: {customer}");
-    //            await context.EmitEventAsync(
-    //                new()
-    //                {
-    //                    Id = CreditEvents.GetCustomer,
-    //                    Data = customer,
-    //                    Visibility = KernelProcessEventVisibility.Public
-    //                }
-    //            );
-    //        }
-    //    }
-
-    //    public class CreditCheckStep : KernelProcessStep
-    //    {
-    //        public static class Functions
-    //        {
-    //            public const string CheckCredit = nameof(CheckCredit);
-    //        }
-
-    //        [KernelFunction(Functions.CheckCredit)]
-    //        public async Task CheckCreditAsync(KernelProcessStepContext context, CustomerInfo customer)
-    //        {
-    //            Console.WriteLine($"[Credit Check] Starting for {customer.Name}");
-
-    //            var isApproved = customer.CreditScore >= 650 && customer.Income >= 50000;
-    //            var result = new CreditCheckResult
-    //            {
-    //                IsApproved = isApproved,
-    //                CustomerName = customer.Name,
-    //                CreditLimit = isApproved ? customer.Income * 0.3m : 0
-    //            };
-
-    //            if (isApproved)
-    //            {
-    //                Console.WriteLine("[Credit Check] Approved");
-    //                await context.EmitEventAsync(
-    //                    new()
-    //                    {
-    //                        Id = CreditEvents.CreditCheckSuccess,
-    //                        Data = result,
-    //                        Visibility = KernelProcessEventVisibility.Public
-    //                    }
-    //                );
-    //            }
-    //            else
-    //            {
-    //                Console.WriteLine("[Credit Check] Rejected");
-    //                await context.EmitEventAsync(
-    //                    new()
-    //                    {
-    //                        Id = CreditEvents.CreditCheckFail,
-    //                        Data =
-    //                            "Credit application rejected due to insufficient credit score or income.",
-    //                        Visibility = KernelProcessEventVisibility.Public
-    //                    }
-    //                );
-    //            }
-    //        }
-    //    }
-
-    //    public class NotificationStep : KernelProcessStep
-    //    {
-    //        public static class Functions
-    //        {
-    //            public const string SendApproval = nameof(SendApproval);
-    //            public const string SendRejection = nameof(SendRejection);
-    //        }
-
-    //        [KernelFunction(Functions.SendApproval)]
-    //        public async Task SendApprovalAsync(KernelProcessStepContext context, CreditCheckResult result)
-    //        {
-    //            Console.WriteLine("======== Approval Notification ========");
-    //            Console.WriteLine($"Congratulations {result.CustomerName}!");
-    //            Console.WriteLine(
-    //                $"Your credit application has been approved with a limit of ${result.CreditLimit:N2}"
-    //            );
-    //            Console.WriteLine("====================================");
-
-    //            await context.EmitEventAsync(new() { Id = CreditEvents.NotificationSent });
-    //        }
-
-    //        [KernelFunction(Functions.SendRejection)]
-    //        public async Task SendRejectionAsync(KernelProcessStepContext context, string message)
-    //        {
-    //            Console.WriteLine("======== Rejection Notification ========");
-    //            Console.WriteLine(message);
-    //            Console.WriteLine("=====================================");
-
-    //            await context.EmitEventAsync(new() { Id = CreditEvents.NotificationSent });
-    //        }
-    //    }
-
-    //    public class StopProcessStep : KernelProcessStep
-    //    {
-    //        public static class Functions
-    //        {
-    //            public const string StopProcess = nameof(StopProcess);
-    //        }
-
-    //        [KernelFunction(Functions.StopProcess)]
-    //        public async Task StopProcessAsync(KernelProcessStepContext context)
-    //        {
-    //            Console.WriteLine("Process completed.");
-    //            await Task.CompletedTask;
-    //        }
-    //    }
-
-    //    #endregion Steps
-
-    //    #region Models
-
-    //    public class CustomerInfo
-    //    {
-    //        public int Id { get; set; }
-    //        public string Name { get; set; } = string.Empty;
-    //        public decimal Income { get; set; }
-    //        public int CreditScore { get; set; }
-
-    //        public override string ToString() =>
-    //            $"Customer: {Name}, Income: ${Income:N2}, Credit Score: {CreditScore}";
-    //    }
-
-    //    public class CreditCheckResult
-    //    {
-    //        public bool IsApproved { get; set; }
-    //        public string CustomerName { get; set; } = string.Empty;
-    //        public decimal CreditLimit { get; set; }
-    //    }
-
-    //#endregion Models
-    //    }
+        var answer = memory.AskStreamingAsync("what time is the clinic open?", index: "clinic");
+        await foreach (var result in answer)
+        {
+            Console.Write(result.ToString());
+        }
+    }
 
     public static async Task GithubInferenceChat(GithubAIConfig githubAIConfig)
     {
         var openAIOptions = new OpenAIClientOptions()
         {
-            Endpoint = new Uri("https://models.inference.ai.azure.com")
+            Endpoint = new Uri("https://models.inference.ai.azure.com"),
         };
 
         var client = new ChatClient(
@@ -1589,8 +1383,10 @@ enough information to complete the task.
 
     public static async Task AzureAITools(AzureAIConfig azureAIConfig)
     {
-        AzureOpenAIClient client =
-            new(new Uri(azureAIConfig.Endpoint), new ApiKeyCredential(azureAIConfig.ApiKey));
+        AzureOpenAIClient client = new(
+            new Uri(azureAIConfig.Endpoint),
+            new ApiKeyCredential(azureAIConfig.ApiKey)
+        );
 
         ChatClient chatClient = client.GetChatClient(azureAIConfig.ChatModelName);
 
@@ -1600,7 +1396,7 @@ enough information to complete the task.
                 @"You are an assistant that helps people answer questions using details of the weather in their location. (City and State).
             You are limited to American cities only. Keep your responses clear and concise."
             ),
-            new UserChatMessage("weather indy")
+            new UserChatMessage("weather indy"),
         ];
 
         ChatTool getWeatherForecastTool = ChatTool.CreateFunctionTool(

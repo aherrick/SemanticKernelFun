@@ -27,7 +27,7 @@ public class FileProcessor
                 ".pdf" => ProcessPdf(file),
                 ".csv" => ProcessCsv(file),
                 ".doc" or ".docx" => ProcessWord(file),
-                _ => throw new NotImplementedException()
+                _ => throw new NotImplementedException(),
             };
 
             rawContentDocument.FileName = Path.GetFileName(file);

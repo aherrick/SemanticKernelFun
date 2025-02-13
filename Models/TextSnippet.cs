@@ -11,7 +11,7 @@ namespace MoreRAGFun.Models;
 public class TextSnippet<TKey>
 {
     [VectorStoreRecordKey]
-    public required TKey Key { get; set; }
+    public TKey Key { get; set; }
 
     [VectorStoreRecordData]
     public string Text { get; set; }
