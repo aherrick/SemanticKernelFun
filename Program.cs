@@ -34,6 +34,7 @@ const string OptionInventoryPlannerStepwise = "Inventory Planner Stepwise";
 const string OptionInventoryPlannerHandlebars = "Inventory Planner Handlebars";
 const string OptionGithubInferenceChat = "Github Inteference Chat";
 const string OptionOllamaMemoryLocal = "Ollama Memory (Local)";
+const string OptionSalesDataAI = "Sales Data AI";
 
 const string OptionTripPlanner = "Trip Planner";
 const string OptionTransferOrderPlanner = "Transfer Order Planner";
@@ -69,6 +70,7 @@ while (true)
                 OptionTransferOrderPlanner,
                 OptionGithubInferenceChat,
                 OptionOllamaMemoryLocal,
+                OptionSalesDataAI,
                 OptionExit
             )
     );
@@ -166,7 +168,11 @@ while (true)
             break;
 
         case OptionOllamaMemoryLocal:
-            await AIProcessor.OllamaMemory(ollamaAIConfig);
+            await AIProcessor.OllamaMemoryLocal(ollamaAIConfig);
+            break;
+
+        case OptionSalesDataAI:
+            await AIProcessor.SalesDataAI(azureAIConfig);
             break;
 
         case OptionExit:

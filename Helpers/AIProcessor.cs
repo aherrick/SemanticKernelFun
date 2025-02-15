@@ -1299,7 +1299,7 @@ enough information to complete the task.
             });
     }
 
-    public static async Task OllamaMemory(OllamaAIConfig ollamaAIConfig)
+    public static async Task OllamaMemoryLocal(OllamaAIConfig ollamaAIConfig)
     {
         var config = new OllamaConfig
         {
@@ -1333,18 +1333,9 @@ enough information to complete the task.
         foreach (var fact in facts)
         {
             if (!await memory.IsDocumentReadyAsync(fact.Item1, index: "clinic"))
-                try
-                {
-                    await memory.ImportTextAsync(
-                        fact.Item2,
-                        documentId: fact.Item1,
-                        index: "clinic"
-                    );
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Failed for {fact.Item1} with {ex.Message}");
-                }
+            {
+                await memory.ImportTextAsync(fact.Item2, documentId: fact.Item1, index: "clinic");
+            }
         }
 
         var answer = memory.AskStreamingAsync("what time is the clinic open?", index: "clinic");
@@ -1352,6 +1343,81 @@ enough information to complete the task.
         {
             Console.Write(result.ToString());
         }
+    }
+
+    public static async Task SalesDataAI(AzureAIConfig azureAIConfig)
+    {
+        var memory = new KernelMemoryBuilder()
+            .WithAzureOpenAITextGeneration(
+                new AzureOpenAIConfig
+                {
+                    APIType = AzureOpenAIConfig.APITypes.ChatCompletion,
+                    Deployment = azureAIConfig.ChatModelName,
+                    Endpoint = azureAIConfig.Endpoint,
+                    APIKey = azureAIConfig.ApiKey,
+                    Auth = AzureOpenAIConfig.AuthTypes.APIKey,
+                }
+            )
+            .WithAzureOpenAITextEmbeddingGeneration(
+                new AzureOpenAIConfig()
+                {
+                    APIType = AzureOpenAIConfig.APITypes.EmbeddingGeneration,
+                    Deployment = azureAIConfig.TextEmbeddingModelName,
+                    Endpoint = azureAIConfig.Endpoint,
+                    APIKey = azureAIConfig.ApiKey,
+                    Auth = AzureOpenAIConfig.AuthTypes.APIKey,
+                },
+                textTokenizer: new GPT4Tokenizer()
+            )
+            .WithSimpleFileStorage()
+            .WithSimpleVectorDb()
+            .Build<MemoryServerless>();
+
+        var salesData = new List<SalesEntry>
+        {
+            new("Laptop", "2024-02-01", 120, "Sunny"),
+            new("Laptop", "2024-02-02", 85, "Rainy"),
+            new("Laptop", "2024-02-03", 95, "Cloudy"),
+            new("Smartphone", "2024-02-01", 200, "Sunny"),
+            new("Smartphone", "2024-02-02", 150, "Rainy"),
+            new("Smartphone", "2024-02-03", 180, "Cloudy"),
+        };
+
+        foreach (var entry in salesData)
+        {
+            string dataText =
+                $"Product: {entry.Product}, Date: {entry.Date}, Sales: {entry.Sales}, Weather: {entry.Weather}";
+            await memory.ImportTextAsync(dataText, index: "sales-data");
+        }
+
+        var response = await memory.AskAsync("Laptop sales on Rainy days", index: "sales-data");
+
+        var kernel = KernelHelper.GetKernelChatCompletion(azureAIConfig);
+
+        kernel.Plugins.AddFromType<WeatherPlugin>();
+
+        var prompt =
+            @"
+            You are an AI supply chain forecaster.
+            Given past sales data and weather conditions, predict future demand.
+
+            Relevant Past Sales Data:
+            {{$sales_data}}
+
+            Provide a forecast for the next 7 days and suggest restocking strategies. Use the local weather to assist in your prediction.
+        ";
+
+        var function = kernel.CreateFunctionFromPrompt(
+            prompt,
+            new PromptExecutionSettings() { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() }
+        );
+
+        var res = await function.InvokeAsync(
+            kernel,
+            new KernelArguments { ["sales_data"] = response.Result }
+        );
+
+        Console.WriteLine("\n🔮 AI Demand Forecast: \n" + res.GetValue<string>());
     }
 
     public static async Task GithubInferenceChat(GithubAIConfig githubAIConfig)
