@@ -5,7 +5,7 @@ namespace SemanticKernelFun.Helpers;
 
 public class WeatherPlugin
 {
-    private static readonly string[] WeatherConditions = { "Sunny", "Rainy", "Cloudy", "Snowy" };
+    private static readonly string[] WeatherConditions = ["Sunny", "Rainy", "Cloudy", "Snowy"];
     private static readonly Random RandomGenerator = new();
 
     [KernelFunction("GetNext7DaysForecast")]

@@ -934,7 +934,7 @@ public static class AIProcessor
 
         Console.WriteLine();
 
-        await foreach (var update in client.CompleteStreamingAsync(question))
+        await foreach (var update in client.GetStreamingResponseAsync(question))
         {
             Console.Write(update);
         }
@@ -1078,7 +1078,7 @@ public static class AIProcessor
 
             // Stream the AI response and add to chat history
             Console.WriteLine("AI Response:");
-            await foreach (var item in chatClient.CompleteStreamingAsync(chatHistory))
+            await foreach (var item in chatClient.GetStreamingResponseAsync(chatHistory))
             {
                 Console.Write(item.Text);
             }
