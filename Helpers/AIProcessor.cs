@@ -3,6 +3,7 @@
 using System.ClientModel;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using Azure.AI.OpenAI;
 using Azure.AI.OpenAI.Chat;
 using Microsoft.Extensions.AI;
@@ -898,27 +899,31 @@ public static class AIProcessor
 
         IAudioToTextService audioService = kernel.GetRequiredService<IAudioToTextService>();
 
-        var audioContent = new Microsoft.SemanticKernel.AudioContent(
-            stream.ToArray().AsMemory(),
-            "audio/wav"
-        );
+        var audioContent = new AudioContent(stream.ToArray().AsMemory(), "audio/wav");
         Microsoft.SemanticKernel.TextContent questionAsText =
             await audioService.GetTextContentAsync(audioContent);
         var question = questionAsText.Text!;
         Console.WriteLine("Question: " + question);
 
-        var history = new ChatHistory();
+        // TODO: https://github.com/microsoft/semantic-kernel/issues/11313
+        // https://github.com/joslat/semantic-kernel/blob/7b83ffd95db80f0765773f5907d0dc7612b9acf3/dotnet/samples/Concepts/Agents/AzureAIAgent_Streaming.cs#L93
 
-        history.AddUserMessage(question);
-
-        await foreach (var response in agent.InvokeStreamingAsync(history))
+        await foreach (
+            StreamingChatMessageContent response in agent.InvokeStreamingAsync(
+                new Microsoft.SemanticKernel.ChatMessageContent(AuthorRole.User, question)
+            )
+        )
         {
-            foreach (var content in response.Content ?? "")
+            foreach (var item in response.Items)
             {
-                Console.Write(content);
+                switch (item)
+                {
+                    case StreamingTextContent textContent:
+                        Console.Write(textContent);
+                        break;
+                }
             }
         }
-
         Console.WriteLine();
     }
 
