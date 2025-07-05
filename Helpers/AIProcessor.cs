@@ -3,43 +3,39 @@
 using System.ClientModel;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
 using Azure.AI.OpenAI;
 using Azure.AI.OpenAI.Chat;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.VectorData;
 using Microsoft.KernelMemory;
 using Microsoft.KernelMemory.AI;
 using Microsoft.KernelMemory.AI.Ollama;
 using Microsoft.KernelMemory.DocumentStorage.DevTools;
 using Microsoft.KernelMemory.FileSystem.DevTools;
 using Microsoft.KernelMemory.MemoryStorage.DevTools;
+using Microsoft.ML.OnnxRuntimeGenAI;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Agents.Chat;
 using Microsoft.SemanticKernel.AudioToText;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.AzureAISearch;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using Microsoft.SemanticKernel.Connectors.InMemory;
+using Microsoft.SemanticKernel.Connectors.Onnx;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.Data;
-using Microsoft.SemanticKernel.Embeddings;
-using Microsoft.SemanticKernel.Memory;
-using Microsoft.SemanticKernel.Planning;
-using Microsoft.SemanticKernel.Planning.Handlebars;
 using Microsoft.SemanticKernel.Plugins.Core;
-using Microsoft.SemanticKernel.Plugins.Memory;
 using Microsoft.SemanticKernel.PromptTemplates.Handlebars;
 using Microsoft.SemanticKernel.Text;
-using MoreRAGFun.Models;
 using NAudio.Wave;
+using OllamaSharp;
 using OpenAI;
 using OpenAI.Chat;
 using Qdrant.Client;
 using Qdrant.Client.Grpc;
 using SemanticKernelFun.Data;
 using SemanticKernelFun.Models;
-using SemanticKernelFun.Plugins.InventoryPlanner;
 using SemanticKernelFun.Plugins.TransferOrderPlanner;
 using SemanticKernelFun.Plugins.TripPlanner;
 using Spectre.Console;
@@ -50,61 +46,77 @@ public static class AIProcessor
 {
     public static async Task LocalAIRAG(LocalAIConfig localAIConfig)
     {
+        // If using Onnx GenAI 0.5.0 or later, track resources used by the Onnx services
+        using var ogaHandle = new OgaHandle();
+
+        // Load the kernel and services
         var builder = Kernel.CreateBuilder();
         builder.AddOnnxRuntimeGenAIChatCompletion(
             modelId: localAIConfig.PhiModelId,
             modelPath: localAIConfig.PhiModelPath
         );
-        builder.AddBertOnnxTextEmbeddingGeneration(
+        builder.AddBertOnnxEmbeddingGenerator(
             onnxModelPath: localAIConfig.BgeModelPath,
             vocabPath: localAIConfig.BgeModelVocabPath
         );
 
-        //.AddLocalTextEmbeddingGeneration(); // this seems to have an issue, see https://github.com/dotnet-smartcomponents/smartcomponents/issues/75
+        // Build the kernel
         var kernel = builder.Build();
 
-        var embeddingGenerator = kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-        var memoryBuilder = new MemoryBuilder();
+        // Get the chat and embedding services
+        using var chatService =
+            kernel.GetRequiredService<IChatCompletionService>()
+            as OnnxRuntimeGenAIChatCompletionService;
+        var embeddingService = kernel.GetRequiredService<
+            IEmbeddingGenerator<string, Embedding<float>>
+        >();
 
-        memoryBuilder
-            .WithMemoryStore(new VolatileMemoryStore())
-            .WithTextEmbeddingGeneration(embeddingGenerator);
+        // Setup vector store and populate it with facts
+        var vectorStore = new InMemoryVectorStore(new() { EmbeddingGenerator = embeddingService });
+        var vectorCollectionName = "ExampleCollection";
+        var collection = vectorStore.GetCollection<string, InformationItem>(vectorCollectionName);
+        await collection.EnsureCollectionExistsAsync();
 
-        var memory = memoryBuilder.Build();
-
-        string collectionName = "AndrewHerrickFacts";
-
-        var tasks = Facts
-            .GetFacts()
-            .Select(f =>
-                memory.SaveInformationAsync(
-                    collection: collectionName,
-                    id: f.Id,
-                    text: f.Text,
-                    description: f.Description,
-                    additionalMetadata: f.Metadata,
-                    kernel: kernel
-                )
+        foreach (var factTextFile in Directory.GetFiles("Facts", "*.txt"))
+        {
+            var factContent = File.ReadAllText(factTextFile);
+            await collection.UpsertAsync(
+                new InformationItem() { Id = Guid.NewGuid().ToString(), Text = factContent }
             );
+        }
 
-        await Task.WhenAll(tasks);
+        // Add vector store plugin
+        var vectorStoreTextSearch = new VectorStoreTextSearch<InformationItem>(collection);
+        kernel.Plugins.Add(vectorStoreTextSearch.CreateWithSearch("SearchPlugin"));
 
-        kernel.ImportPluginFromObject(new TextMemoryPlugin(memory));
-
+        // Start the conversation loop
         while (true)
         {
             Console.ForegroundColor = ConsoleColor.White;
-            Console.Write($"You > ");
-            var question = Console.ReadLine().Trim();
-            if (question.Equals("exit", StringComparison.OrdinalIgnoreCase))
+            Console.Write("You > ");
+            var question = Console.ReadLine()?.Trim();
+
+            if (
+                string.IsNullOrWhiteSpace(question)
+                || question.Equals("exit", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                DisposeServices(kernel);
                 break;
+            }
 
             var prompt =
                 @"
-        Question: {{$input}}
-        Answer the question using the memory content: {{Recall}}";
+                Question: {{input}}
+                Answer the question using the memory content:
+                {{#with (SearchPlugin-Search input)}}
+                  {{#each this}}
+                    {{this}}
+                    -----------------
+                  {{/each}}
+                {{/with}}";
 
-            OpenAIPromptExecutionSettings openAIPromptExecutionSettings = new()
+            var settings = new OpenAIPromptExecutionSettings
             {
                 ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions,
                 Temperature = 1,
@@ -113,25 +125,243 @@ public static class AIProcessor
 
             var response = kernel.InvokePromptStreamingAsync(
                 promptTemplate: prompt,
-                arguments: new KernelArguments(openAIPromptExecutionSettings)
+                templateFormat: "handlebars",
+                promptTemplateFactory: new HandlebarsPromptTemplateFactory(),
+                arguments: new KernelArguments(settings)
                 {
-                    { "collection", collectionName },
                     { "input", question },
+                    { "collection", vectorCollectionName },
                 }
             );
 
             Console.ForegroundColor = ConsoleColor.Green;
             Console.Write("AI > ");
-
-            string combinedResponse = string.Empty;
-            await foreach (var message in response)
+            await foreach (var msg in response)
             {
-                Console.Write(message);
-                combinedResponse += message;
+                Console.Write(msg);
             }
-
             Console.WriteLine();
         }
+
+        static void DisposeServices(Kernel kernel)
+        {
+            foreach (
+                var service in kernel.GetAllServices<IChatCompletionService>().OfType<IDisposable>()
+            )
+            {
+                service.Dispose();
+            }
+        }
+
+        //// If using Onnx GenAI 0.5.0 or later, the OgaHandle class must be used to track
+        //// resources used by the Onnx services, before using any of the Onnx services.
+        //using var ogaHandle = new OgaHandle();
+
+        //// Load the services
+        //var builder = Kernel
+        //    .CreateBuilder()
+        //    .AddOnnxRuntimeGenAIChatCompletion(localAIConfig.PhiModelId, localAIConfig.PhiModelPath)
+        //    .AddBertOnnxEmbeddingGenerator(
+        //        localAIConfig.BgeModelPath,
+        //        localAIConfig.BgeModelVocabPath
+        //    );
+
+        //// Build Kernel
+        //var kernel = builder.Build();
+
+        //// Get the instances of the services
+        //using var chatService =
+        //    kernel.GetRequiredService<IChatCompletionService>()
+        //    as OnnxRuntimeGenAIChatCompletionService;
+        //var embeddingService = kernel.GetRequiredService<
+        //    IEmbeddingGenerator<string, Embedding<float>>
+        //>();
+
+        //// Create a vector store and a collection to store information
+        //var vectorStore = new InMemoryVectorStore(new() { EmbeddingGenerator = embeddingService });
+        //var collection = vectorStore.GetCollection<string, InformationItem>("ExampleCollection");
+        //await collection.EnsureCollectionExistsAsync();
+
+        //// Save some information to the memory
+        //var collectionName = "ExampleCollection";
+        //foreach (var factTextFile in Directory.GetFiles("Facts", "*.txt"))
+        //{
+        //    var factContent = File.ReadAllText(factTextFile);
+        //    await collection.UpsertAsync(
+        //        new InformationItem() { Id = Guid.NewGuid().ToString(), Text = factContent }
+        //    );
+        //}
+
+        //// Add a plugin to search the database with.
+        //var vectorStoreTextSearch = new VectorStoreTextSearch<InformationItem>(collection);
+        //kernel.Plugins.Add(vectorStoreTextSearch.CreateWithSearch("SearchPlugin"));
+
+        //// Start the conversation
+        //while (true)
+        //{
+        //    // Get user input
+        //    Console.ForegroundColor = ConsoleColor.White;
+        //    Console.Write("User > ");
+        //    var question = Console.ReadLine()!;
+
+        //    // Clean resources and exit the demo if the user input is null or empty
+        //    if (question is null || string.IsNullOrWhiteSpace(question))
+        //    {
+        //        // To avoid any potential memory leak all disposable
+        //        // services created by the kernel are disposed
+        //        DisposeServices(kernel);
+        //        return;
+        //    }
+
+        //    // Invoke the kernel with the user input
+        //    var response = kernel.InvokePromptStreamingAsync(
+        //        promptTemplate: @"Question: {{input}}
+        //Answer the question using the memory content:
+        //{{#with (SearchPlugin-Search input)}}
+        //  {{#each this}}
+        //    {{this}}
+        //    -----------------
+        //  {{/each}}
+        //{{/with}}",
+        //        templateFormat: "handlebars",
+        //        promptTemplateFactory: new HandlebarsPromptTemplateFactory(),
+        //        arguments: new KernelArguments()
+        //        {
+        //            { "input", question },
+        //            { "collection", collectionName },
+        //        }
+        //    );
+
+        //    Console.Write("\nAssistant > ");
+
+        //    await foreach (var message in response)
+        //    {
+        //        Console.Write(message);
+        //    }
+
+        //    Console.WriteLine();
+        //}
+
+        //static void DisposeServices(Kernel kernel)
+        //{
+        //    foreach (
+        //        var target in kernel.GetAllServices<IChatCompletionService>().OfType<IDisposable>()
+        //    )
+        //    {
+        //        target.Dispose();
+        //    }
+        //}
+
+        //var builder = Kernel.CreateBuilder();
+        //builder.AddOnnxRuntimeGenAIChatCompletion(
+        //    modelId: localAIConfig.PhiModelId,
+        //    modelPath: localAIConfig.PhiModelPath
+        //);
+
+        //builder.AddBertOnnxEmbeddingGenerator(
+        //    onnxModelPath: localAIConfig.BgeModelPath,
+        //    vocabPath: localAIConfig.BgeModelVocabPath
+        //);
+
+        //// Get the instances of the services
+        //using var chatService =
+        //    kernel.GetRequiredService<IChatCompletionService>()
+        //    as OnnxRuntimeGenAIChatCompletionService;
+        //var embeddingService = kernel.GetRequiredService<
+        //    IEmbeddingGenerator<string, Embedding<float>>
+        //>();
+
+        //// Create a vector store and a collection to store information
+        //var vectorStore = new InMemoryVectorStore(new() { EmbeddingGenerator = embeddingService });
+        //var collection = vectorStore.GetCollection<string, InformationItem>("ExampleCollection");
+        //await collection.EnsureCollectionExistsAsync();
+
+        //// Save some information to the memory
+        //var collectionName = "ExampleCollection";
+        //foreach (var factTextFile in Directory.GetFiles("Facts", "*.txt"))
+        //{
+        //    var factContent = File.ReadAllText(factTextFile);
+        //    await collection.UpsertAsync(
+        //        new InformationItem() { Id = Guid.NewGuid().ToString(), Text = factContent }
+        //    );
+        //}
+
+        //// Add a plugin to search the database with.
+        //var vectorStoreTextSearch = new VectorStoreTextSearch<InformationItem>(collection);
+        //kernel.Plugins.Add(vectorStoreTextSearch.CreateWithSearch("SearchPlugin"));
+
+        ////.AddLocalTextEmbeddingGeneration(); // this seems to have an issue, see https://github.com/dotnet-smartcomponents/smartcomponents/issues/75
+        //var kernel = builder.Build();
+
+        //var embeddingGenerator = kernel.GetRequiredService<ITextEmbeddingGenerationService>();
+        //var memoryBuilder = new MemoryBuilder();
+
+        //memoryBuilder
+        //    .WithMemoryStore(new VolatileMemoryStore())
+        //    .WithTextEmbeddingGeneration(embeddingGenerator);
+
+        //var memory = memoryBuilder.Build();
+
+        //string collectionName = "AndrewHerrickFacts";
+
+        //var tasks = Facts
+        //    .GetFacts()
+        //    .Select(f =>
+        //        memory.SaveInformationAsync(
+        //            collection: collectionName,
+        //            id: f.Id,
+        //            text: f.Text,
+        //            description: f.Description,
+        //            additionalMetadata: f.Metadata,
+        //            kernel: kernel
+        //        )
+        //    );
+
+        //await Task.WhenAll(tasks);
+
+        //kernel.ImportPluginFromObject(new TextMemoryPlugin(memory));
+
+        //while (true)
+        //{
+        //    Console.ForegroundColor = ConsoleColor.White;
+        //    Console.Write($"You > ");
+        //    var question = Console.ReadLine().Trim();
+        //    if (question.Equals("exit", StringComparison.OrdinalIgnoreCase))
+        //        break;
+
+        //    var prompt =
+        //        @"
+        //Question: {{$input}}
+        //Answer the question using the memory content: {{Recall}}";
+
+        //    OpenAIPromptExecutionSettings openAIPromptExecutionSettings = new()
+        //    {
+        //        ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions,
+        //        Temperature = 1,
+        //        MaxTokens = 200,
+        //    };
+
+        //    var response = kernel.InvokePromptStreamingAsync(
+        //        promptTemplate: prompt,
+        //        arguments: new KernelArguments(openAIPromptExecutionSettings)
+        //        {
+        //            { "collection", collectionName },
+        //            { "input", question },
+        //        }
+        //    );
+
+        //    Console.ForegroundColor = ConsoleColor.Green;
+        //    Console.Write("AI > ");
+
+        //    string combinedResponse = string.Empty;
+        //    await foreach (var message in response)
+        //    {
+        //        Console.Write(message);
+        //        combinedResponse += message;
+        //    }
+
+        //    Console.WriteLine();
+        //}
     }
 
     public static async Task LocalAIChat(LocalAIConfig localAIConfig)
@@ -244,7 +474,7 @@ public static class AIProcessor
                 { ".gif", "image/gif" },
             };
 
-            var chatHistory = new ChatHistory();
+            var chatHistory = new Microsoft.SemanticKernel.ChatCompletion.ChatHistory();
             chatHistory.AddUserMessage(
                 [
                     new Microsoft.SemanticKernel.TextContent("What’s in this image?"),
@@ -449,7 +679,7 @@ public static class AIProcessor
         };
 
         var chatService = kernel.GetRequiredService<IChatCompletionService>();
-        var chatHistory = new ChatHistory(
+        var chatHistory = new Microsoft.SemanticKernel.ChatCompletion.ChatHistory(
             //"""
             //You are a friendly assistant who helps users with their tasks.
             //You will complete required steps and request approval before taking any consequential actions.
@@ -512,16 +742,18 @@ public static class AIProcessor
         {
             Console.WriteLine("Ingesting Documents...");
 
-            var textEmbeddingGenerationService =
-                kernel.Services.GetRequiredService<ITextEmbeddingGenerationService>();
-
-            var vectorStoreRecordService = kernel.GetRequiredService<
-                IVectorStoreRecordCollection<string, TextSnippet<string>>
+            // Set up vector store and embedding generator
+            Console.WriteLine($"Set up vector store and embedding generator");
+            var embeddingGenerator = kernel.GetRequiredService<
+                IEmbeddingGenerator<string, Embedding<float>>
             >();
 
-            // just delete and readd for
-            await vectorStoreRecordService.DeleteCollectionAsync();
-            await vectorStoreRecordService.CreateCollectionIfNotExistsAsync();
+            var vectorStore = kernel.GetRequiredService<AzureAISearchVectorStore>();
+            var collection = vectorStore.GetCollection<string, TextSnippet<string>>("default");
+
+            // delete and readd the collection
+            await collection.EnsureCollectionDeletedAsync();
+            await collection.EnsureCollectionExistsAsync();
 
             var files = await FileProcessor.ProcessFiles(folderPath);
 
@@ -539,26 +771,19 @@ public static class AIProcessor
 
                     foreach (var paragraph in paragraphs)
                     {
-                        records.Add(
+                        var embed = await embeddingGenerator.GenerateAsync(paragraph);
+
+                        await collection.UpsertAsync(
                             new TextSnippet<string>()
                             {
                                 Key = rcd.Id,
                                 Text = paragraph,
                                 ReferenceDescription = rcd.FileName,
                                 ReferenceLink = rcd.Id,
-                                TextEmbedding = await GetEmbeddings(
-                                    paragraph,
-                                    textEmbeddingGenerationService
-                                ),
+                                TextEmbedding = embed.Vector,
                             }
                         );
                     }
-                }
-
-                var upsertedKeys = vectorStoreRecordService.UpsertBatchAsync(records);
-                await foreach (var key in upsertedKeys.ConfigureAwait(false))
-                {
-                    Console.WriteLine($"Upserted record '{key}' into VectorDB");
                 }
 
                 await Task.Delay(10_000);
@@ -705,7 +930,7 @@ public static class AIProcessor
         var question = Console.ReadLine() ?? "";
         groupChat.AddChatMessage(
             new Microsoft.SemanticKernel.ChatMessageContent(
-                AuthorRole.User,
+                Microsoft.SemanticKernel.ChatCompletion.AuthorRole.User,
                 "tell a story about: " + question
             )
         );
@@ -843,7 +1068,10 @@ public static class AIProcessor
         var prompt = Console.ReadLine() ?? "";
 
         chat.AddChatMessage(
-            new Microsoft.SemanticKernel.ChatMessageContent(AuthorRole.User, prompt)
+            new Microsoft.SemanticKernel.ChatMessageContent(
+                Microsoft.SemanticKernel.ChatCompletion.AuthorRole.User,
+                prompt
+            )
         );
         await foreach (var content in chat.InvokeAsync())
         {
@@ -910,7 +1138,10 @@ public static class AIProcessor
 
         await foreach (
             StreamingChatMessageContent response in agent.InvokeStreamingAsync(
-                new Microsoft.SemanticKernel.ChatMessageContent(AuthorRole.User, question)
+                new Microsoft.SemanticKernel.ChatMessageContent(
+                    Microsoft.SemanticKernel.ChatCompletion.AuthorRole.User,
+                    question
+                )
             )
         )
         {
@@ -929,7 +1160,7 @@ public static class AIProcessor
 
     public static async Task OllamaChat(OllamaAIConfig ollamaAIConfig)
     {
-        IChatClient client = new OllamaChatClient(
+        var client = new OllamaApiClient(
             new Uri(ollamaAIConfig.Endpoint),
             ollamaAIConfig.ChatModelName
         );
@@ -956,14 +1187,23 @@ public static class AIProcessor
             apiKey: qdrantClientConfig.ApiKey
         );
 
-        OllamaEmbeddingGenerator textEmbeddingGenerator = new(
+        var embeddingGenerator = new OllamaApiClient(
             new Uri(ollamaAIConfig.Endpoint),
             ollamaAIConfig.TextEmbeddingModelName
         );
 
-        OllamaChatClient chatClient = new(
-            new Uri(ollamaAIConfig.Endpoint),
-            ollamaAIConfig.ChatModelName
+        var chatClient = new OllamaApiClient(
+            new HttpClient
+            {
+                BaseAddress = new Uri(ollamaAIConfig.Endpoint),
+                Timeout = Timeout.InfiniteTimeSpan,
+            },
+            defaultModel: ollamaAIConfig.ChatModelName
+        );
+
+        var chat = new Chat(
+            chatClient,
+            "Your are an intelligent, cheerful assistant who prioritizes answers to user questions using the data in this conversation. If you do not know the answer, say 'I don't know.'."
         );
 
         Console.WriteLine($"Loading data...");
@@ -996,11 +1236,12 @@ public static class AIProcessor
         {
             var item = zeldaRecords[i];
 
+            var embedding = await embeddingGenerator.EmbedAsync(
+                item.Name + ": " + item.Description
+            );
+
             // Generate embedding for the record
-            item.Embedding = (
-                await textEmbeddingGenerator.GenerateAsync([item.Name + ": " + item.Description])
-            )[0]
-                .Vector.ToArray();
+            item.Embedding = embedding.Embeddings[0];
 
             // Add the record and its embedding to the list for database insertion
             qdrantRecords.Add(
@@ -1013,12 +1254,15 @@ public static class AIProcessor
             );
         }
 
-        await qClient.DeleteCollectionAsync("zelda-database");
+        if (await qClient.CollectionExistsAsync("zelda-database"))
+        {
+            await qClient.DeleteCollectionAsync("zelda-database");
+        }
 
         // Create the db collection
         await qClient.CreateCollectionAsync(
             "zelda-database",
-            new VectorParams { Size = 768, Distance = Distance.Cosine }
+            new VectorParams { Size = 384, Distance = Distance.Cosine }
         );
 
         // Insert the records into the database
@@ -1032,9 +1276,6 @@ public static class AIProcessor
         {
             Console.WriteLine();
 
-            // Create chat history
-            List<Microsoft.Extensions.AI.ChatMessage> chatHistory = [];
-
             // Get user prompt
             var userPrompt = Console.ReadLine();
 
@@ -1042,13 +1283,11 @@ public static class AIProcessor
             //give me some locations
 
             // Create an embedding version of the prompt
-            var promptEmbedding = (await textEmbeddingGenerator.GenerateAsync([userPrompt]))[0]
-                .Vector.ToArray();
+            var promptEmbedding = await embeddingGenerator.GenerateVectorAsync(userPrompt);
 
-            // Run a vector search using the prompt embedding
-            var returnedLocations = await qClient.QueryAsync(
+            var returnedLocations = await qClient.SearchAsync(
                 collectionName: "zelda-database",
-                query: promptEmbedding,
+                vector: promptEmbedding,
                 limit: 25
             );
 
@@ -1062,13 +1301,12 @@ public static class AIProcessor
                 );
             }
 
-            // Assemble the full prompt to the chat AI model using instructions,
-            // the original user prompt, and the retrieved relevant data
-            chatHistory.Add(
-                new Microsoft.Extensions.AI.ChatMessage(
-                    ChatRole.User,
-                    @$"Your are an intelligent, cheerful assistant who prioritizes answers to user questions using the data in this conversation.
-                If you do not know the answer, say 'I don't know.'.
+            // Stream the AI response and add to chat history
+            Console.WriteLine("AI Response:");
+            await foreach (
+                var item in chat.SendAsAsync(
+                    OllamaSharp.Models.Chat.ChatRole.User,
+                    @$"
                 Answer the following question:
 
                 [Question]
@@ -1079,54 +1317,11 @@ public static class AIProcessor
                 {builder}
     "
                 )
-            );
-
-            // Stream the AI response and add to chat history
-            Console.WriteLine("AI Response:");
-            await foreach (var item in chatClient.GetStreamingResponseAsync(chatHistory))
+            )
             {
-                Console.Write(item.Text);
+                Console.Write(item);
             }
             Console.WriteLine();
-        }
-    }
-
-    public static async Task InventoryPlanner(AzureAIConfig azureAIConfig, PlannerType plannerType)
-    {
-        var KernelChat = KernelHelper.GetKernelChatCompletion(azureAIConfig);
-
-        KernelChat.Plugins.AddFromType<InventoryAgentPlugin>();
-
-        // Provide a natural language goal
-        var userGoal =
-            "Add 5 iphone 15s and 10 dell laptops to inventory, then remove 2 of those phones and check stock of laptops and phones.";
-
-        Console.WriteLine("User Goal:");
-        Console.WriteLine(userGoal);
-
-        if (plannerType == PlannerType.Stepwise)
-        {
-            var planner = new FunctionCallingStepwisePlanner();
-            var result = await planner.ExecuteAsync(KernelChat, userGoal);
-
-            foreach (var line in result.ChatHistory)
-            {
-                Console.WriteLine(line);
-            }
-
-            Console.WriteLine(result.FinalAnswer);
-        }
-        else if (plannerType == PlannerType.Handlebars)
-        {
-            var handlebar = new HandlebarsPlanner();
-            var handlebarPlan = await handlebar.CreatePlanAsync(KernelChat, userGoal);
-
-            Console.WriteLine(handlebarPlan.Prompt);
-            Console.WriteLine(handlebarPlan);
-
-            var handlebarResult = await handlebarPlan.InvokeAsync(KernelChat);
-
-            Console.WriteLine(handlebarResult);
         }
     }
 
@@ -1142,7 +1337,7 @@ public static class AIProcessor
         IChatCompletionService chatCompletionService =
             KernelChat.GetRequiredService<IChatCompletionService>();
 
-        ChatHistory chatMessages = new(
+        Microsoft.SemanticKernel.ChatCompletion.ChatHistory chatMessages = new(
             """
 You are a friendly assistant who likes to follow the rules. You will complete required steps
 and request approval before taking any consequential actions. If the user doesn't provide
@@ -1286,22 +1481,6 @@ enough information to complete the task.
         );
 
         Console.WriteLine(transferOrders);
-    }
-
-    private static async Task<ReadOnlyMemory<float>> GetEmbeddings(
-        string text,
-        ITextEmbeddingGenerationService textEmbeddingGenerationService
-    )
-    {
-        return await PollyHelper
-            .Retry()
-            .ExecuteAsync(async cancellationToken =>
-            {
-                return await textEmbeddingGenerationService.GenerateEmbeddingAsync(
-                    text,
-                    cancellationToken: cancellationToken
-                );
-            });
     }
 
     public static async Task OllamaMemoryLocal(OllamaAIConfig ollamaAIConfig)

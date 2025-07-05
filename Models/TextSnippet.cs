@@ -1,8 +1,6 @@
-﻿#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+﻿using Microsoft.Extensions.VectorData;
 
-using Microsoft.Extensions.VectorData;
-
-namespace MoreRAGFun.Models;
+namespace SemanticKernelFun.Models;
 
 /// <summary>
 /// Data model for storing a section of text with an embedding and an optional reference link.
@@ -10,18 +8,18 @@ namespace MoreRAGFun.Models;
 /// <typeparam name="TKey">The type of the data model key.</typeparam>
 public class TextSnippet<TKey>
 {
-    [VectorStoreRecordKey]
+    [VectorStoreKey]
     public TKey Key { get; set; }
 
-    [VectorStoreRecordData]
+    [VectorStoreData]
     public string Text { get; set; }
 
-    [VectorStoreRecordData]
+    [VectorStoreData]
     public string ReferenceDescription { get; set; }
 
-    [VectorStoreRecordData]
+    [VectorStoreData]
     public string ReferenceLink { get; set; }
 
-    [VectorStoreRecordVector(1536)]
+    [VectorStoreVector(1536)]
     public ReadOnlyMemory<float> TextEmbedding { get; set; }
 }

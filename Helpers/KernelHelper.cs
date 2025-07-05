@@ -3,11 +3,11 @@
 using Azure;
 using Azure.AI.OpenAI;
 using Azure.AI.OpenAI.Chat;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.KernelMemory;
 using Microsoft.KernelMemory.AI;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Data;
-using MoreRAGFun.Models;
 using OpenAI.Chat;
 using SemanticKernelFun.Models;
 
@@ -28,7 +28,7 @@ public static class KernelHelper
                     Deployment = azureAIConfig.ChatModelName,
                     Endpoint = azureAIConfig.Endpoint,
                     APIKey = azureAIConfig.ApiKey,
-                    Auth = AzureOpenAIConfig.AuthTypes.APIKey
+                    Auth = AzureOpenAIConfig.AuthTypes.APIKey,
                 }
             )
             .WithAzureOpenAITextEmbeddingGeneration(
@@ -38,7 +38,7 @@ public static class KernelHelper
                     Deployment = azureAIConfig.TextEmbeddingModelName,
                     Endpoint = azureAIConfig.Endpoint,
                     APIKey = azureAIConfig.ApiKey,
-                    Auth = AzureOpenAIConfig.AuthTypes.APIKey
+                    Auth = AzureOpenAIConfig.AuthTypes.APIKey,
                 },
                 textTokenizer: new GPT4Tokenizer()
             )
@@ -48,7 +48,7 @@ public static class KernelHelper
                     Endpoint = azureSearchConfig.Endpoint,
                     APIKey = azureSearchConfig.ApiKey,
                     Auth = AzureAISearchConfig.AuthTypes.APIKey,
-                    UseHybridSearch = true
+                    UseHybridSearch = true,
                 }
             )
             .WithSearchClientConfig(
@@ -56,7 +56,7 @@ public static class KernelHelper
                 {
                     MaxMatchesCount = 2,
                     Temperature = 0,
-                    TopP = 0
+                    TopP = 0,
                 }
             )
             // TODO look into:
@@ -116,16 +116,16 @@ public static class KernelHelper
         AzureSearchConfig azureSearchConfig
     )
     {
+        // https://github.com/TrueAquarius/Hello.MicrosoftSemanticKernel/blob/f11f10254d665aa408121ed991c0adb35965ab1f/Demo.MicrosoftSemanticKernel.AzureAISearch/Program.cs#L52
         var kernelBuilder = GetKernelBuilderChatCompletion(azureAIConfig);
 
-        kernelBuilder.AddAzureOpenAITextEmbeddingGeneration(
+        kernelBuilder.AddAzureOpenAIEmbeddingGenerator(
             deploymentName: azureAIConfig.TextEmbeddingModelName,
             endpoint: azureAIConfig.Endpoint,
             apiKey: azureAIConfig.ApiKey
         );
 
-        kernelBuilder.AddAzureAISearchVectorStoreRecordCollection<TextSnippet<string>>(
-            azureSearchConfig.Index,
+        kernelBuilder.Services.AddAzureAISearchVectorStore(
             new Uri(azureSearchConfig.Endpoint),
             new AzureKeyCredential(azureSearchConfig.ApiKey)
         );
@@ -142,15 +142,13 @@ public static class KernelHelper
                     return new TextSearchResult(value: castResult.Text)
                     {
                         Name = castResult.ReferenceDescription,
-                        Link = castResult.ReferenceLink
+                        Link = castResult.ReferenceLink,
                     };
                 }
             )
         );
 
-        var kernel = kernelBuilder.Build();
-
-        return kernel;
+        return kernelBuilder.Build();
     }
 
     public static AzureSearchChatDataSource GetAzureSearchChatDataSource(
@@ -162,7 +160,7 @@ public static class KernelHelper
             Endpoint = new Uri(azureSearchConfig.Endpoint),
             IndexName = azureSearchConfig.Index,
             Authentication = DataSourceAuthentication.FromApiKey(azureSearchConfig.ApiKey),
-            InScope = true
+            InScope = true,
         };
     }
 

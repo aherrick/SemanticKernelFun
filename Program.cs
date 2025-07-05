@@ -30,8 +30,7 @@ const string OptionSpeechToText = "Speech To Text (Azure)";
 const string OptionAzureAITools = "Azure AI Tools";
 const string OptionOllamaChat = "Ollama Chat (Local)";
 const string OptionQdrantAILocalRagChat = "Qdrant AI Local Rag Chat";
-const string OptionInventoryPlannerStepwise = "Inventory Planner Stepwise";
-const string OptionInventoryPlannerHandlebars = "Inventory Planner Handlebars";
+
 const string OptionGithubInferenceChat = "Github Inteference Chat";
 const string OptionOllamaMemoryLocal = "Ollama Memory (Local)";
 const string OptionSalesDataAI = "Sales Data AI";
@@ -64,8 +63,6 @@ while (true)
                 OptionAzureAITools,
                 OptionOllamaChat,
                 OptionQdrantAILocalRagChat,
-                OptionInventoryPlannerStepwise,
-                OptionInventoryPlannerHandlebars,
                 OptionTripPlanner,
                 OptionTransferOrderPlanner,
                 OptionGithubInferenceChat,
@@ -145,14 +142,6 @@ while (true)
         case OptionQdrantAILocalRagChat:
 
             await AIProcessor.QdrantAILocalRag(qdrantClientConfig, ollamaAIConfig);
-            break;
-
-        case OptionInventoryPlannerStepwise:
-            await AIProcessor.InventoryPlanner(azureAIConfig, PlannerType.Stepwise);
-            break;
-
-        case OptionInventoryPlannerHandlebars:
-            await AIProcessor.InventoryPlanner(azureAIConfig, PlannerType.Handlebars);
             break;
 
         case OptionTripPlanner:
