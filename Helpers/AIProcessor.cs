@@ -77,11 +77,19 @@ public static class AIProcessor
         var collection = vectorStore.GetCollection<string, InformationItem>(vectorCollectionName);
         await collection.EnsureCollectionExistsAsync();
 
-        foreach (var factTextFile in Directory.GetFiles("Facts", "*.txt"))
+        var facts = Facts.GetFacts();
+
+        foreach (var fact in facts)
         {
-            var factContent = File.ReadAllText(factTextFile);
             await collection.UpsertAsync(
-                new InformationItem() { Id = Guid.NewGuid().ToString(), Text = factContent }
+                new InformationItem
+                {
+                    Id = fact.Id ?? Guid.NewGuid().ToString(),
+                    Text = fact.Text,
+
+                    //Description = fact.Description,
+                    //AdditionalMetadata = fact.Metadata
+                }
             );
         }
 
@@ -152,216 +160,6 @@ public static class AIProcessor
                 service.Dispose();
             }
         }
-
-        //// If using Onnx GenAI 0.5.0 or later, the OgaHandle class must be used to track
-        //// resources used by the Onnx services, before using any of the Onnx services.
-        //using var ogaHandle = new OgaHandle();
-
-        //// Load the services
-        //var builder = Kernel
-        //    .CreateBuilder()
-        //    .AddOnnxRuntimeGenAIChatCompletion(localAIConfig.PhiModelId, localAIConfig.PhiModelPath)
-        //    .AddBertOnnxEmbeddingGenerator(
-        //        localAIConfig.BgeModelPath,
-        //        localAIConfig.BgeModelVocabPath
-        //    );
-
-        //// Build Kernel
-        //var kernel = builder.Build();
-
-        //// Get the instances of the services
-        //using var chatService =
-        //    kernel.GetRequiredService<IChatCompletionService>()
-        //    as OnnxRuntimeGenAIChatCompletionService;
-        //var embeddingService = kernel.GetRequiredService<
-        //    IEmbeddingGenerator<string, Embedding<float>>
-        //>();
-
-        //// Create a vector store and a collection to store information
-        //var vectorStore = new InMemoryVectorStore(new() { EmbeddingGenerator = embeddingService });
-        //var collection = vectorStore.GetCollection<string, InformationItem>("ExampleCollection");
-        //await collection.EnsureCollectionExistsAsync();
-
-        //// Save some information to the memory
-        //var collectionName = "ExampleCollection";
-        //foreach (var factTextFile in Directory.GetFiles("Facts", "*.txt"))
-        //{
-        //    var factContent = File.ReadAllText(factTextFile);
-        //    await collection.UpsertAsync(
-        //        new InformationItem() { Id = Guid.NewGuid().ToString(), Text = factContent }
-        //    );
-        //}
-
-        //// Add a plugin to search the database with.
-        //var vectorStoreTextSearch = new VectorStoreTextSearch<InformationItem>(collection);
-        //kernel.Plugins.Add(vectorStoreTextSearch.CreateWithSearch("SearchPlugin"));
-
-        //// Start the conversation
-        //while (true)
-        //{
-        //    // Get user input
-        //    Console.ForegroundColor = ConsoleColor.White;
-        //    Console.Write("User > ");
-        //    var question = Console.ReadLine()!;
-
-        //    // Clean resources and exit the demo if the user input is null or empty
-        //    if (question is null || string.IsNullOrWhiteSpace(question))
-        //    {
-        //        // To avoid any potential memory leak all disposable
-        //        // services created by the kernel are disposed
-        //        DisposeServices(kernel);
-        //        return;
-        //    }
-
-        //    // Invoke the kernel with the user input
-        //    var response = kernel.InvokePromptStreamingAsync(
-        //        promptTemplate: @"Question: {{input}}
-        //Answer the question using the memory content:
-        //{{#with (SearchPlugin-Search input)}}
-        //  {{#each this}}
-        //    {{this}}
-        //    -----------------
-        //  {{/each}}
-        //{{/with}}",
-        //        templateFormat: "handlebars",
-        //        promptTemplateFactory: new HandlebarsPromptTemplateFactory(),
-        //        arguments: new KernelArguments()
-        //        {
-        //            { "input", question },
-        //            { "collection", collectionName },
-        //        }
-        //    );
-
-        //    Console.Write("\nAssistant > ");
-
-        //    await foreach (var message in response)
-        //    {
-        //        Console.Write(message);
-        //    }
-
-        //    Console.WriteLine();
-        //}
-
-        //static void DisposeServices(Kernel kernel)
-        //{
-        //    foreach (
-        //        var target in kernel.GetAllServices<IChatCompletionService>().OfType<IDisposable>()
-        //    )
-        //    {
-        //        target.Dispose();
-        //    }
-        //}
-
-        //var builder = Kernel.CreateBuilder();
-        //builder.AddOnnxRuntimeGenAIChatCompletion(
-        //    modelId: localAIConfig.PhiModelId,
-        //    modelPath: localAIConfig.PhiModelPath
-        //);
-
-        //builder.AddBertOnnxEmbeddingGenerator(
-        //    onnxModelPath: localAIConfig.BgeModelPath,
-        //    vocabPath: localAIConfig.BgeModelVocabPath
-        //);
-
-        //// Get the instances of the services
-        //using var chatService =
-        //    kernel.GetRequiredService<IChatCompletionService>()
-        //    as OnnxRuntimeGenAIChatCompletionService;
-        //var embeddingService = kernel.GetRequiredService<
-        //    IEmbeddingGenerator<string, Embedding<float>>
-        //>();
-
-        //// Create a vector store and a collection to store information
-        //var vectorStore = new InMemoryVectorStore(new() { EmbeddingGenerator = embeddingService });
-        //var collection = vectorStore.GetCollection<string, InformationItem>("ExampleCollection");
-        //await collection.EnsureCollectionExistsAsync();
-
-        //// Save some information to the memory
-        //var collectionName = "ExampleCollection";
-        //foreach (var factTextFile in Directory.GetFiles("Facts", "*.txt"))
-        //{
-        //    var factContent = File.ReadAllText(factTextFile);
-        //    await collection.UpsertAsync(
-        //        new InformationItem() { Id = Guid.NewGuid().ToString(), Text = factContent }
-        //    );
-        //}
-
-        //// Add a plugin to search the database with.
-        //var vectorStoreTextSearch = new VectorStoreTextSearch<InformationItem>(collection);
-        //kernel.Plugins.Add(vectorStoreTextSearch.CreateWithSearch("SearchPlugin"));
-
-        ////.AddLocalTextEmbeddingGeneration(); // this seems to have an issue, see https://github.com/dotnet-smartcomponents/smartcomponents/issues/75
-        //var kernel = builder.Build();
-
-        //var embeddingGenerator = kernel.GetRequiredService<ITextEmbeddingGenerationService>();
-        //var memoryBuilder = new MemoryBuilder();
-
-        //memoryBuilder
-        //    .WithMemoryStore(new VolatileMemoryStore())
-        //    .WithTextEmbeddingGeneration(embeddingGenerator);
-
-        //var memory = memoryBuilder.Build();
-
-        //string collectionName = "AndrewHerrickFacts";
-
-        //var tasks = Facts
-        //    .GetFacts()
-        //    .Select(f =>
-        //        memory.SaveInformationAsync(
-        //            collection: collectionName,
-        //            id: f.Id,
-        //            text: f.Text,
-        //            description: f.Description,
-        //            additionalMetadata: f.Metadata,
-        //            kernel: kernel
-        //        )
-        //    );
-
-        //await Task.WhenAll(tasks);
-
-        //kernel.ImportPluginFromObject(new TextMemoryPlugin(memory));
-
-        //while (true)
-        //{
-        //    Console.ForegroundColor = ConsoleColor.White;
-        //    Console.Write($"You > ");
-        //    var question = Console.ReadLine().Trim();
-        //    if (question.Equals("exit", StringComparison.OrdinalIgnoreCase))
-        //        break;
-
-        //    var prompt =
-        //        @"
-        //Question: {{$input}}
-        //Answer the question using the memory content: {{Recall}}";
-
-        //    OpenAIPromptExecutionSettings openAIPromptExecutionSettings = new()
-        //    {
-        //        ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions,
-        //        Temperature = 1,
-        //        MaxTokens = 200,
-        //    };
-
-        //    var response = kernel.InvokePromptStreamingAsync(
-        //        promptTemplate: prompt,
-        //        arguments: new KernelArguments(openAIPromptExecutionSettings)
-        //        {
-        //            { "collection", collectionName },
-        //            { "input", question },
-        //        }
-        //    );
-
-        //    Console.ForegroundColor = ConsoleColor.Green;
-        //    Console.Write("AI > ");
-
-        //    string combinedResponse = string.Empty;
-        //    await foreach (var message in response)
-        //    {
-        //        Console.Write(message);
-        //        combinedResponse += message;
-        //    }
-
-        //    Console.WriteLine();
-        //}
     }
 
     public static async Task LocalAIChat(LocalAIConfig localAIConfig)
