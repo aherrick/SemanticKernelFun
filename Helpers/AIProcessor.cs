@@ -547,7 +547,9 @@ public static class AIProcessor
             >();
 
             var vectorStore = kernel.GetRequiredService<AzureAISearchVectorStore>();
-            var collection = vectorStore.GetCollection<string, TextSnippet<string>>("default");
+            var collection = vectorStore.GetCollection<string, TextSnippet<string>>(
+                azureSearchConfig.Index
+            );
 
             // delete and readd the collection
             await collection.EnsureCollectionDeletedAsync();
