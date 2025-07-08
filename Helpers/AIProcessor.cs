@@ -17,6 +17,9 @@ using Microsoft.ML.OnnxRuntimeGenAI;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Agents.Chat;
+using Microsoft.SemanticKernel.Agents.Orchestration.GroupChat;
+using Microsoft.SemanticKernel.Agents.Orchestration.Handoff;
+using Microsoft.SemanticKernel.Agents.Runtime.InProcess;
 using Microsoft.SemanticKernel.AudioToText;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureAISearch;
@@ -36,6 +39,7 @@ using Qdrant.Client;
 using Qdrant.Client.Grpc;
 using SemanticKernelFun.Data;
 using SemanticKernelFun.Models;
+using SemanticKernelFun.Plugins;
 using SemanticKernelFun.Plugins.TransferOrderPlanner;
 using SemanticKernelFun.Plugins.TripPlanner;
 using Spectre.Console;
@@ -1499,12 +1503,220 @@ enough information to complete the task.
                 }
             }
 
-            OpenAI.Chat.ChatCompletion finalCompletion = await chatClient.CompleteChatAsync(
+            ChatCompletion finalCompletion = await chatClient.CompleteChatAsync(
                 conversationMessages,
                 options
             );
 
             Console.WriteLine(finalCompletion.Content.First().Text);
         }
+    }
+
+    public static async Task RunMultiAgentSloganOrchestration(AzureAIConfig azureAIConfig)
+    {
+        // Set up kernel (adjust this as needed for your config)
+        var kernel = KernelHelper.GetKernelChatCompletion(azureAIConfig);
+
+        // Define the agents inline
+        var writer = new ChatCompletionAgent
+        {
+            Name = "CopyWriter",
+            Description = "A copy writer",
+            Instructions = """
+                You are a copywriter with ten years of experience and are known for brevity and a dry humor.
+                The goal is to refine and decide on the single best copy as an expert in the field.
+                Only provide a single proposal per response.
+                You're laser focused on the goal at hand.
+                Don't waste time with chit chat.
+                Consider suggestions when refining an idea.
+                """,
+            Kernel = kernel,
+        };
+
+        var editor = new ChatCompletionAgent
+        {
+            Name = "Reviewer",
+            Description = "An editor.",
+            Instructions = """
+                You are an art director who has opinions about copywriting born of a love for David Ogilvy.
+                The goal is to determine if the given copy is acceptable to print.
+                If so, state that it is approved.
+                If not, provide insight on how to refine suggested copy without example.
+                """,
+            Kernel = kernel,
+        };
+
+        // Define orchestration with a custom group manager and simple console output
+        var orchestration = new GroupChatOrchestration(
+            new CustomRoundRobinGroupChatManager
+            {
+                MaximumInvocationCount = 5,
+                InteractiveCallback = () =>
+                {
+                    var input = new Microsoft.SemanticKernel.ChatMessageContent(
+                        AuthorRole.User,
+                        "I like it"
+                    );
+                    Console.WriteLine($"\n# USER INPUT: {input.Content}\n");
+                    return ValueTask.FromResult(input);
+                },
+            },
+            writer,
+            editor
+        )
+        {
+            ResponseCallback = async content =>
+            {
+                Console.WriteLine($"\n📨 {content.Role} [{content.AuthorName}]: {content.Content}");
+                await Task.CompletedTask;
+            },
+        };
+
+        // Start the runtime
+        var runtime = new InProcessRuntime();
+        await runtime.StartAsync();
+
+        // Initial input
+        string input =
+            "Create a slogan for a new electric SUV that is affordable and fun to drive.";
+        Console.WriteLine($"\n🚗 Initial Prompt: {input}");
+
+        var result = await orchestration.InvokeAsync(input, runtime);
+        string output = await result.GetValueAsync(TimeSpan.FromSeconds(30));
+
+        Console.WriteLine($"\n🎯 Final Output:\n{output}");
+
+        await runtime.RunUntilIdleAsync();
+
+        Console.WriteLine("\n✅ Done. Press any key to exit.");
+        Console.ReadKey();
+    }
+
+    private class CustomRoundRobinGroupChatManager : RoundRobinGroupChatManager
+    {
+        public override ValueTask<GroupChatManagerResult<bool>> ShouldRequestUserInput(
+            ChatHistory history,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var last = history.LastOrDefault();
+            if (last?.AuthorName == "Reviewer")
+            {
+                return ValueTask.FromResult(
+                    new GroupChatManagerResult<bool>(true)
+                    {
+                        Reason = "Reviewer has spoken; requesting user input.",
+                    }
+                );
+            }
+
+            return ValueTask.FromResult(
+                new GroupChatManagerResult<bool>(false) { Reason = "User input not yet needed." }
+            );
+        }
+    }
+
+    public static async Task RunMultiAgentTriageOrchestration(AzureAIConfig azureAIConfig)
+    {
+        var kernel = KernelHelper.GetKernelChatCompletion(azureAIConfig);
+
+        kernel.ImportPluginFromObject(new TicketPlugin());
+        kernel.ImportPluginFromObject(new KnowledgePlugin());
+
+        // AGENTS
+        var triageAgent = new ChatCompletionAgent
+        {
+            Name = "TriageAgent",
+            Description =
+                "Responsible for triaging incoming support requests and routing them to the appropriate department.",
+            Instructions = """
+                You triage employee requests. Route to ITAgent (tech), HRAgent (HR), or FinanceAgent (money-related).
+                """,
+            Kernel = kernel,
+        };
+
+        var itAgent = new ChatCompletionAgent
+        {
+            Name = "ITAgent",
+            Description =
+                "Handles IT-related support requests such as software, hardware, network, or login issues.",
+            Instructions = """
+                You're an IT support agent. Troubleshoot technical issues.
+                If unresolved, call TicketPlugin.CreateTicket(issue, "IT").
+                """,
+            Kernel = kernel,
+        };
+
+        var hrAgent = new ChatCompletionAgent
+        {
+            Name = "HRAgent",
+            Description =
+                "Handles human resources support like PTO, benefits, job roles, and employee policies.",
+            Instructions = """
+                You're an HR support agent. Help with PTO, benefits, and policies.
+                Use KnowledgePlugin.GetPolicy if asked about HR policy.
+                """,
+            Kernel = kernel,
+        };
+
+        var financeAgent = new ChatCompletionAgent
+        {
+            Name = "FinanceAgent",
+            Description =
+                "Handles finance-related support such as payroll, reimbursements, and budgeting policies.",
+            Instructions = """
+                You're a finance agent. Help with payroll, reimbursements, and expense policies.
+                Use KnowledgePlugin.GetPolicy or TicketPlugin as needed.
+                """,
+            Kernel = kernel,
+        };
+
+        var handoffs = OrchestrationHandoffs
+            .StartWith(triageAgent)
+            .Add(triageAgent, itAgent, hrAgent, financeAgent)
+            .Add(itAgent, triageAgent, "Hand back if not a tech issue")
+            .Add(hrAgent, triageAgent, "Hand back if not an HR issue")
+            .Add(financeAgent, triageAgent, "Hand back if not finance");
+
+        var orchestration = new HandoffOrchestration(
+            handoffs,
+            triageAgent,
+            itAgent,
+            hrAgent,
+            financeAgent
+        )
+        {
+            InteractiveCallback = async () =>
+            {
+                Console.Write("\n🧑‍💼 You: ");
+                var input = await Task.Run(() => Console.ReadLine());
+
+                return new Microsoft.SemanticKernel.ChatMessageContent(
+                    AuthorRole.User,
+                    input ?? ""
+                );
+            },
+
+            ResponseCallback = async msg =>
+            {
+                Console.WriteLine($"\n📣 {msg.Role} [{msg.AuthorName}]: {msg.Content}");
+                await Task.CompletedTask;
+            },
+        };
+
+        // RUN IT
+        Console.WriteLine("Enter a support request:");
+        Console.Write("> ");
+        var input = Console.ReadLine() ?? "I need help accessing my pay stubs.";
+
+        var runtime = new InProcessRuntime();
+        await runtime.StartAsync();
+
+        var result = await orchestration.InvokeAsync(input, runtime);
+        var final = await result.GetValueAsync();
+
+        Console.WriteLine($"\n✅ Final result: {final}");
+        Console.WriteLine("\nPress any key to exit...");
+        Console.ReadKey();
     }
 }
